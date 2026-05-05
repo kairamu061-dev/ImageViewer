@@ -1,0 +1,35 @@
+# ===== .NET =====
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.rsuser
+.idea/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Editor =====
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+*.swp
+*~
+
+# ===== Secrets =====
+*.env
+appsettings.*.json
+!appsettings.Development.json
