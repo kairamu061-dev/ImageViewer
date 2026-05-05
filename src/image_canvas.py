@@ -1,0 +1,117 @@
+from __future__ import annotations
+from PyQt6.QtWidgets import QWidget
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize
+from PyQt6.QtGui import QPainter, QPixmap, QColor, QFont
+
+
+class ImageCanvas(QWidget):
+    next_requested = pyqtSignal()
+    prev_requested = pyqtSignal()
+    hover_bottom = pyqtSignal(bool)
+
+    BOTTOM_HOVER_ZONE = 60
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pixmap: QPixmap | None = None
+        self._fit_pixmap: QPixmap | None = None
+        self._fit_size: QSize = QSize()
+        self._scale = 1.0
+        self._fit = True
+        self._offset = QPoint(0, 0)
+        self._in_bottom_zone = False
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setStyleSheet("background: #1E1E1E;")
+
+    def set_pixmap(self, pixmap: QPixmap | None):
+        self._pixmap = pixmap
+        self._fit = True
+        self._fit_pixmap = None
+        self._offset = QPoint(0, 0)
+        self.update()
+
+    def clear(self):
+        self._pixmap = None
+        self._fit_pixmap = None
+        self.update()
+
+    def _get_fit_pixmap(self) -> QPixmap | None:
+        if self._pixmap is None or self._pixmap.isNull():
+            return None
+        current_size = QSize(self.width(), self.height())
+        if self._fit_pixmap is None or self._fit_size != current_size:
+            self._fit_pixmap = self._pixmap.scaled(
+                self.width(), self.height(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._fit_size = current_size
+        return self._fit_pixmap
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor("#1E1E1E"))
+
+        if self._pixmap is None or self._pixmap.isNull():
+            painter.setPen(QColor("#666666"))
+            font = QFont()
+            font.setPointSize(14)
+            painter.setFont(font)
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "画像がありません")
+            return
+
+        if self._fit:
+            scaled = self._get_fit_pixmap()
+            if scaled:
+                x = (self.width() - scaled.width()) // 2
+                y = (self.height() - scaled.height()) // 2
+                painter.drawPixmap(x, y, scaled)
+        else:
+            w = int(self._pixmap.width() * self._scale)
+            h = int(self._pixmap.height() * self._scale)
+            scaled = self._pixmap.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = (self.width() - scaled.width()) // 2 + self._offset.x()
+            y = (self.height() - scaled.height()) // 2 + self._offset.y()
+            painter.drawPixmap(x, y, scaled)
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        if self._pixmap is None or self._pixmap.isNull():
+            return
+        if self._fit:
+            fw = self.width() / self._pixmap.width()
+            fh = self.height() / self._pixmap.height()
+            self._scale = min(fw, fh)
+            self._fit = False
+
+        factor = 1.1 if delta > 0 else 0.9
+        self._scale = max(0.05, min(self._scale * factor, 20.0))
+        self.update()
+
+    def mousePressEvent(self, event):
+        btn = event.button()
+        if btn == Qt.MouseButton.XButton2:
+            self.next_requested.emit()
+        elif btn == Qt.MouseButton.XButton1:
+            self.prev_requested.emit()
+
+    def mouseMoveEvent(self, event):
+        in_zone = event.position().y() >= self.height() - self.BOTTOM_HOVER_ZONE
+        if in_zone != self._in_bottom_zone:
+            self._in_bottom_zone = in_zone
+            self.hover_bottom.emit(in_zone)
+
+    def leaveEvent(self, event):
+        if self._in_bottom_zone:
+            self._in_bottom_zone = False
+            self.hover_bottom.emit(False)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_pixmap = None
+        self.update()
