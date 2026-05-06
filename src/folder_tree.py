@@ -20,6 +20,7 @@ class FolderOnlyModel(QFileSystemModel):
 
 class FolderTreePanel(QWidget):
     folder_selected = pyqtSignal(Path)
+    open_in_new_tab = pyqtSignal(Path)
     add_to_favorites = pyqtSignal(Path)
 
     def __init__(self, parent=None):
@@ -89,6 +90,9 @@ class FolderTreePanel(QWidget):
             return
         path = Path(self._model.filePath(index))
         menu = QMenu(self)
+        new_tab_act = menu.addAction("別のタブとして開く")
+        new_tab_act.triggered.connect(lambda: self.open_in_new_tab.emit(path))
+        menu.addSeparator()
         open_act = menu.addAction("エクスプローラーで開く")
         open_act.triggered.connect(lambda: self._open_in_explorer(path))
         fav_act = menu.addAction("お気に入りに追加")

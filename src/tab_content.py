@@ -9,6 +9,7 @@ from image_viewer_panel import ImageViewerPanel
 class TabContent(QWidget):
     title_changed = pyqtSignal(str)
     add_to_favorites = pyqtSignal(Path)
+    open_in_new_tab = pyqtSignal(Path)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -32,6 +33,7 @@ class TabContent(QWidget):
 
         self._folder_panel.folder_selected.connect(self._on_folder_selected)
         self._folder_panel.add_to_favorites.connect(self.add_to_favorites)
+        self._folder_panel.open_in_new_tab.connect(self.open_in_new_tab)
         self._viewer.navigate_to_folder.connect(self._on_navigate)
         self._viewer.image_changed.connect(self._emit_title)
 

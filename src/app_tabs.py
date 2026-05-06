@@ -12,25 +12,37 @@ _TAB_STYLE = """
         border: none;
         background: #1E1E1E;
     }
+    QTabBar {
+        background: #252526;
+    }
     QTabBar::tab {
         background: #2d2d30;
-        color: #CCCCCC;
-        padding: 5px 12px;
+        color: #888;
+        padding: 7px 6px 7px 14px;
+        min-width: 80px;
+        max-width: 200px;
         border: none;
-        border-right: 1px solid #1E1E1E;
+        border-right: 1px solid #1a1a1a;
+        border-top: 2px solid transparent;
         font-size: 12px;
-        max-width: 220px;
     }
     QTabBar::tab:selected {
         background: #1E1E1E;
-        color: white;
+        color: #fff;
+        border-top: 2px solid #2196F3;
     }
     QTabBar::tab:hover:!selected {
         background: #3e3e42;
+        color: #ccc;
     }
     QTabBar::close-button {
-        image: none;
         subcontrol-position: right;
+        margin: 2px 4px;
+        border-radius: 3px;
+        padding: 1px;
+    }
+    QTabBar::close-button:hover {
+        background: #c42b1c;
     }
 """
 
@@ -82,6 +94,7 @@ class AppTabWidget(QTabWidget):
     def add_new_tab(self, root: Path | None = None) -> TabContent:
         content = TabContent(self)
         content.add_to_favorites.connect(self._fav_model.add_folder)
+        content.open_in_new_tab.connect(self.add_new_tab)
         idx = self.addTab(content, "新しいタブ")
         content.title_changed.connect(lambda t, c=content: self._update_title(c, t))
         self.setCurrentIndex(idx)

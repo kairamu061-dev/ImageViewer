@@ -81,6 +81,18 @@ class ImageCanvas(QWidget):
             y = (self.height() - scaled.height()) // 2 + self._offset.y()
             painter.drawPixmap(x, y, scaled)
 
+    def _clamp_offset(self, offset: QPoint) -> QPoint:
+        if self._pixmap is None or self._pixmap.isNull():
+            return QPoint(0, 0)
+        sw = int(self._pixmap.width() * self._scale)
+        sh = int(self._pixmap.height() * self._scale)
+        max_x = max(0, (sw - self.width()) // 2)
+        max_y = max(0, (sh - self.height()) // 2)
+        return QPoint(
+            max(-max_x, min(max_x, offset.x())),
+            max(-max_y, min(max_y, offset.y())),
+        )
+
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
         if self._pixmap is None or self._pixmap.isNull():
@@ -93,6 +105,7 @@ class ImageCanvas(QWidget):
 
         factor = 1.1 if delta > 0 else 0.9
         self._scale = max(0.05, min(self._scale * factor, 20.0))
+        self._offset = self._clamp_offset(self._offset)
         self.update()
 
     def mousePressEvent(self, event):
@@ -114,7 +127,7 @@ class ImageCanvas(QWidget):
     def mouseMoveEvent(self, event):
         if self._drag_start is not None:
             delta = event.pos() - self._drag_start
-            self._offset = self._drag_offset_at_start + delta
+            self._offset = self._clamp_offset(self._drag_offset_at_start + delta)
             self.update()
             return
 

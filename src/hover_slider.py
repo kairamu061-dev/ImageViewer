@@ -51,6 +51,10 @@ class HoverSlider(QWidget):
                 border-radius: 7px;
             }
             QSlider::sub-page:horizontal {
+                background: rgba(255,255,255,0.15);
+                border-radius: 2px;
+            }
+            QSlider::add-page:horizontal {
                 background: rgba(255,255,255,0.8);
                 border-radius: 2px;
             }
