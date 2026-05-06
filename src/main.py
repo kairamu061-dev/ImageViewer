@@ -4,7 +4,13 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
 from main_window import MainWindow
 
-_ICON_PATH = Path(__file__).parent.parent / "app_icon.ico"
+def _resource(filename: str) -> Path:
+    """PyInstaller バンドル時は sys._MEIPASS、開発時はリポジトリルートを参照する。"""
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / filename
+    return Path(__file__).parent.parent / filename
+
+_ICON_PATH = _resource("app_icon.ico")
 
 
 def main():
