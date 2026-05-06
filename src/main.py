@@ -8,7 +8,6 @@ def main():
     app.setStyle("Fusion")
     window = MainWindow()
     window.show()
-    window.open_folder_dialog()
     sys.exit(app.exec())
 
 

@@ -1,12 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
-from PyQt6.QtWidgets import (
-    QMainWindow, QSplitter, QFileDialog, QToolBar, QWidget
-)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QIcon
-from folder_tree import FolderTreePanel
-from image_viewer_panel import ImageViewerPanel
+from PyQt6.QtWidgets import QMainWindow, QFileDialog, QToolBar
+from PyQt6.QtGui import QAction
+from app_tabs import AppTabWidget
+import state_manager
 
 
 class MainWindow(QMainWindow):
@@ -15,23 +12,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("画像ビューアー")
         self.resize(1200, 800)
 
-        self._folder_panel = FolderTreePanel(self)
-        self._viewer_panel = ImageViewerPanel(self)
-
-        splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        splitter.addWidget(self._folder_panel)
-        splitter.addWidget(self._viewer_panel)
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setSizes([220, 980])
-        splitter.setHandleWidth(1)
-        splitter.setStyleSheet("QSplitter::handle { background: #3c3c3c; }")
-
-        self.setCentralWidget(splitter)
-        self._folder_panel.folder_selected.connect(self._on_folder_selected)
+        self._tabs = AppTabWidget(self)
+        self.setCentralWidget(self._tabs)
 
         self._build_toolbar()
         self._apply_style()
+        self._restore_state()
 
     def _build_toolbar(self):
         toolbar = QToolBar("メイン", self)
@@ -55,17 +41,13 @@ class MainWindow(QMainWindow):
                 border-radius: 3px;
             }
         """)
-        open_action = QAction("フォルダを開く", self)
-        open_action.triggered.connect(self.open_folder_dialog)
-        toolbar.addAction(open_action)
+        open_act = QAction("フォルダを開く", self)
+        open_act.triggered.connect(self.open_folder_dialog)
+        toolbar.addAction(open_act)
         self.addToolBar(toolbar)
 
     def _apply_style(self):
-        self.setStyleSheet("""
-            QMainWindow {
-                background: #1E1E1E;
-            }
-        """)
+        self.setStyleSheet("QMainWindow { background: #1E1E1E; }")
 
     def open_folder_dialog(self):
         folder = QFileDialog.getExistingDirectory(
@@ -73,11 +55,24 @@ class MainWindow(QMainWindow):
             QFileDialog.Option.ShowDirsOnly,
         )
         if folder:
-            self._load_root(Path(folder))
+            self._tabs.add_new_tab(Path(folder))
 
-    def _load_root(self, folder: Path):
-        self._folder_panel.set_root(folder)
-        self._viewer_panel.load_folder(folder)
+    def _restore_state(self):
+        state = state_manager.load()
+        if state.get("tabs"):
+            self._tabs.restore_state(state)
+            geo = state.get("window")
+            if geo:
+                self.setGeometry(geo["x"], geo["y"], geo["width"], geo["height"])
+        else:
+            self._tabs.add_new_tab()
 
-    def _on_folder_selected(self, folder: Path):
-        self._viewer_panel.load_folder(folder)
+    def closeEvent(self, event):
+        geo = self.geometry()
+        state = self._tabs.get_state()
+        state["window"] = {
+            "x": geo.x(), "y": geo.y(),
+            "width": geo.width(), "height": geo.height(),
+        }
+        state_manager.save(state)
+        super().closeEvent(event)

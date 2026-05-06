@@ -20,6 +20,8 @@ class ImageCanvas(QWidget):
         self._fit = True
         self._offset = QPoint(0, 0)
         self._in_bottom_zone = False
+        self._drag_start: QPoint | None = None
+        self._drag_offset_at_start = QPoint(0, 0)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setStyleSheet("background: #1E1E1E;")
@@ -95,18 +97,34 @@ class ImageCanvas(QWidget):
 
     def mousePressEvent(self, event):
         btn = event.button()
-        if btn == Qt.MouseButton.XButton2:
+        if btn == Qt.MouseButton.LeftButton and not self._fit:
+            self._drag_start = event.pos()
+            self._drag_offset_at_start = QPoint(self._offset)
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        elif btn == Qt.MouseButton.XButton2:
             self.next_requested.emit()
         elif btn == Qt.MouseButton.XButton1:
             self.prev_requested.emit()
 
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
     def mouseMoveEvent(self, event):
+        if self._drag_start is not None:
+            delta = event.pos() - self._drag_start
+            self._offset = self._drag_offset_at_start + delta
+            self.update()
+            return
+
         in_zone = event.position().y() >= self.height() - self.BOTTOM_HOVER_ZONE
         if in_zone != self._in_bottom_zone:
             self._in_bottom_zone = in_zone
             self.hover_bottom.emit(in_zone)
 
     def leaveEvent(self, event):
+        self._drag_start = None
         if self._in_bottom_zone:
             self._in_bottom_zone = False
             self.hover_bottom.emit(False)

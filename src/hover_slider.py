@@ -1,7 +1,8 @@
 from __future__ import annotations
-from PyQt6.QtWidgets import QWidget, QSlider, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QHBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer, pyqtProperty
 from PyQt6.QtGui import QPainter, QColor
+from jump_slider import JumpSlider
 
 
 class HoverSlider(QWidget):
@@ -17,7 +18,7 @@ class HoverSlider(QWidget):
         self._hide_timer.setInterval(500)
         self._hide_timer.timeout.connect(self._fade_out)
 
-        self._slider = QSlider(Qt.Orientation.Horizontal, self)
+        self._slider = JumpSlider(Qt.Orientation.Horizontal, self)
         self._slider.setInvertedAppearance(True)
         self._slider.valueChanged.connect(self._on_value_changed)
 
@@ -101,7 +102,6 @@ class HoverSlider(QWidget):
         self._anim.stop()
         self._anim.setStartValue(self._opacity)
         self._anim.setEndValue(target)
-        self._target_opacity = target
         self._anim.start()
 
     def enterEvent(self, event):

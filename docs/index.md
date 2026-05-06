@@ -9,3 +9,7 @@
 
 <!-- 機能エリア・サブ項目が追加されるたびに追記する -->
 - [image-viewer](./image-viewer/overview.md)
+  - [enhancements](./image-viewer/enhancements/overview.md)
+  - [tabs](./image-viewer/tabs/overview.md)
+  - [favorites](./image-viewer/favorites/overview.md)
+  - [persistence](./image-viewer/persistence/overview.md)
