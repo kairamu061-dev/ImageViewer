@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from PyQt6.QtWidgets import QTabWidget, QWidget, QHBoxLayout, QPushButton
+from PyQt6.QtWidgets import QTabWidget, QTabBar, QWidget, QHBoxLayout, QPushButton, QToolButton
 from PyQt6.QtCore import Qt
 from tab_content import TabContent
 from favorites_tab import FavoritesTab
@@ -13,42 +13,50 @@ _TAB_STYLE = """
         background: #1E1E1E;
     }
     QTabBar {
-        background: #252526;
+        background: #1a1a1a;
     }
     QTabBar::tab {
-        background: #2d2d30;
-        color: #888;
+        background: #252526;
+        color: #777;
         padding: 7px 6px 7px 14px;
         min-width: 80px;
         max-width: 200px;
         border: none;
         border-right: 1px solid #1a1a1a;
-        border-top: 2px solid transparent;
+        border-top: 3px solid transparent;
         font-size: 12px;
     }
     QTabBar::tab:selected {
-        background: #1E1E1E;
-        color: #fff;
-        border-top: 2px solid #2196F3;
+        background: #3c3c3c;
+        color: #ffffff;
+        border-top: 3px solid #2196F3;
     }
     QTabBar::tab:hover:!selected {
-        background: #3e3e42;
-        color: #ccc;
-    }
-    QTabBar::close-button {
-        subcontrol-position: right;
-        margin: 2px 4px;
-        border-radius: 3px;
-        padding: 1px;
-    }
-    QTabBar::close-button:hover {
-        background: #c42b1c;
+        background: #2d2d30;
+        color: #bbbbbb;
     }
 """
 
-_BTN_STYLE = """
+_CLOSE_BTN_STYLE = """
+    QToolButton {
+        color: #888;
+        background: transparent;
+        border: none;
+        font-size: 13px;
+        font-weight: bold;
+        padding: 0;
+        margin: 0;
+    }
+    QToolButton:hover {
+        color: #ffffff;
+        background: #c42b1c;
+        border-radius: 3px;
+    }
+"""
+
+_CORNER_BTN_STYLE = """
     QPushButton {
-        background: #2d2d30;
+        background: #252526;
         color: #CCCCCC;
         border: none;
         padding: 4px 10px;
@@ -63,10 +71,9 @@ _BTN_STYLE = """
 class AppTabWidget(QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setTabsClosable(True)
+        self.setTabsClosable(False)   # managed manually
         self.setMovable(True)
         self.setStyleSheet(_TAB_STYLE)
-        self.tabCloseRequested.connect(self._on_close_tab)
 
         self._fav_model = FavoritesModel(self)
         self._fav_tab: FavoritesTab | None = None
@@ -76,16 +83,37 @@ class AppTabWidget(QTabWidget):
         row.setContentsMargins(0, 0, 4, 0)
         row.setSpacing(0)
         self._btn_new = QPushButton("+", corner)
-        self._btn_new.setStyleSheet(_BTN_STYLE)
+        self._btn_new.setStyleSheet(_CORNER_BTN_STYLE)
         self._btn_new.setFixedWidth(32)
         self._btn_new.clicked.connect(lambda: self.add_new_tab())
         self._btn_fav = QPushButton("☆", corner)
-        self._btn_fav.setStyleSheet(_BTN_STYLE)
+        self._btn_fav.setStyleSheet(_CORNER_BTN_STYLE)
         self._btn_fav.setFixedWidth(32)
         self._btn_fav.clicked.connect(self._toggle_favorites)
         row.addWidget(self._btn_new)
         row.addWidget(self._btn_fav)
         self.setCornerWidget(corner, Qt.Corner.TopRightCorner)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _make_close_btn(self, widget: QWidget) -> QToolButton:
+        btn = QToolButton()
+        btn.setText("×")
+        btn.setFixedSize(18, 18)
+        btn.setStyleSheet(_CLOSE_BTN_STYLE)
+        btn.clicked.connect(lambda: self._close_by_widget(widget))
+        return btn
+
+    def _attach_close_btn(self, idx: int, widget: QWidget):
+        btn = self._make_close_btn(widget)
+        self.tabBar().setTabButton(idx, QTabBar.ButtonPosition.RightSide, btn)
+
+    def _close_by_widget(self, widget: QWidget):
+        idx = self.indexOf(widget)
+        if idx >= 0:
+            self._on_close_tab(idx)
 
     # ------------------------------------------------------------------
     # Tab management
@@ -96,6 +124,7 @@ class AppTabWidget(QTabWidget):
         content.add_to_favorites.connect(self._fav_model.add_folder)
         content.open_in_new_tab.connect(self.add_new_tab)
         idx = self.addTab(content, "新しいタブ")
+        self._attach_close_btn(idx, content)
         content.title_changed.connect(lambda t, c=content: self._update_title(c, t))
         self.setCurrentIndex(idx)
         if root:
@@ -106,6 +135,7 @@ class AppTabWidget(QTabWidget):
         if self._fav_tab is None:
             self._fav_tab = FavoritesTab(self._fav_model, self)
             idx = self.addTab(self._fav_tab, "お気に入り")
+            self._attach_close_btn(idx, self._fav_tab)
             self._fav_tab.title_changed.connect(
                 lambda t, f=self._fav_tab: self._update_title(f, t)
             )
@@ -119,7 +149,6 @@ class AppTabWidget(QTabWidget):
         if widget is self._fav_tab:
             self._fav_tab = None
             self._btn_fav.setText("☆")
-        # Keep at least one regular tab open
         regular_count = sum(
             1 for i in range(self.count())
             if not isinstance(self.widget(i), FavoritesTab)
@@ -140,15 +169,13 @@ class AppTabWidget(QTabWidget):
     # ------------------------------------------------------------------
 
     def get_state(self) -> dict:
-        tabs = []
         fav_tab_open = self._fav_tab is not None
         fav_splitter = self._fav_tab.get_splitter_sizes() if self._fav_tab else [220, 980]
-
-        for i in range(self.count()):
-            w = self.widget(i)
-            if isinstance(w, TabContent):
-                tabs.append(w.get_state())
-
+        tabs = [
+            self.widget(i).get_state()
+            for i in range(self.count())
+            if isinstance(self.widget(i), TabContent)
+        ]
         return {
             "tabs": tabs,
             "active_tab": self.currentIndex(),

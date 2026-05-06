@@ -1,12 +1,43 @@
 from __future__ import annotations
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeView, QAbstractItemView, QMenu,
 )
 from PyQt6.QtCore import pyqtSignal, QDir, Qt, QModelIndex
-from PyQt6.QtGui import QFileSystemModel
+from PyQt6.QtGui import QFileSystemModel, QPixmap, QPainter, QPainterPath, QColor
+
+_ARROW_PATHS: dict[str, str] = {}
+
+
+def _ensure_arrow_paths() -> dict[str, str]:
+    """Generate branch arrow PNG files once and cache their paths."""
+    global _ARROW_PATHS
+    if _ARROW_PATHS:
+        return _ARROW_PATHS
+    tmpdir = tempfile.gettempdir()
+    shapes = {
+        "closed": [(2.5, 1.5), (8.5, 5.0), (2.5, 8.5)],   # ▶ right-pointing
+        "open":   [(1.5, 2.5), (8.5, 2.5), (5.0, 8.5)],   # ▼ down-pointing
+    }
+    for name, pts in shapes.items():
+        px = QPixmap(10, 10)
+        px.fill(Qt.GlobalColor.transparent)
+        p = QPainter(px)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.moveTo(*pts[0])
+        for pt in pts[1:]:
+            path.lineTo(*pt)
+        path.closeSubpath()
+        p.fillPath(path, QColor("#999999"))
+        p.end()
+        out = os.path.join(tmpdir, f"iv_branch_{name}.png")
+        px.save(out)
+        _ARROW_PATHS[name] = out.replace("\\", "/")
+    return _ARROW_PATHS
 
 
 class FolderOnlyModel(QFileSystemModel):
@@ -31,7 +62,7 @@ class FolderTreePanel(QWidget):
         self._tree.setHeaderHidden(True)
         self._tree.setAnimated(True)
         self._tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self._tree.setIndentation(16)
+        self._tree.setIndentation(18)
         self._tree.clicked.connect(self._on_clicked)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
@@ -43,31 +74,43 @@ class FolderTreePanel(QWidget):
         self._apply_style()
 
     def _apply_style(self):
-        self.setStyleSheet("""
-            QTreeView {
+        arrows = _ensure_arrow_paths()
+        closed = arrows.get("closed", "")
+        opened = arrows.get("open", "")
+        self.setStyleSheet(f"""
+            QTreeView {{
                 background: #252526;
                 color: #CCCCCC;
                 border: none;
                 font-size: 13px;
-            }
-            QTreeView::item:selected {
+            }}
+            QTreeView::item {{
+                padding: 2px 0;
+            }}
+            QTreeView::item:selected {{
                 background: #2196F3;
                 color: white;
-            }
-            QTreeView::item:hover:!selected {
+            }}
+            QTreeView::item:hover:!selected {{
                 background: #2d2d30;
-            }
-            QTreeView::branch {
+            }}
+            QTreeView::branch {{
                 background: #252526;
-            }
-            QMenu {
+            }}
+            QTreeView::branch:has-children:closed {{
+                image: url({closed});
+            }}
+            QTreeView::branch:open:has-children {{
+                image: url({opened});
+            }}
+            QMenu {{
                 background: #2d2d30;
                 color: #CCCCCC;
                 border: 1px solid #3c3c3c;
-            }
-            QMenu::item:selected {
+            }}
+            QMenu::item:selected {{
                 background: #2196F3;
-            }
+            }}
         """)
 
     def set_root(self, folder: Path):
@@ -90,13 +133,16 @@ class FolderTreePanel(QWidget):
             return
         path = Path(self._model.filePath(index))
         menu = QMenu(self)
-        new_tab_act = menu.addAction("別のタブとして開く")
-        new_tab_act.triggered.connect(lambda: self.open_in_new_tab.emit(path))
+        menu.addAction("別のタブとして開く").triggered.connect(
+            lambda: self.open_in_new_tab.emit(path)
+        )
         menu.addSeparator()
-        open_act = menu.addAction("エクスプローラーで開く")
-        open_act.triggered.connect(lambda: self._open_in_explorer(path))
-        fav_act = menu.addAction("お気に入りに追加")
-        fav_act.triggered.connect(lambda: self.add_to_favorites.emit(path))
+        menu.addAction("エクスプローラーで開く").triggered.connect(
+            lambda: self._open_in_explorer(path)
+        )
+        menu.addAction("お気に入りに追加").triggered.connect(
+            lambda: self.add_to_favorites.emit(path)
+        )
         menu.exec(self._tree.viewport().mapToGlobal(pos))
 
     @staticmethod
