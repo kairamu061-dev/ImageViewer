@@ -4,7 +4,11 @@ echo  ImageViewer Build (folder)
 echo ========================================
 echo.
 taskkill /f /im ImageViewer.exe 2>nul
-uv run --with pyqt6 --with pyinstaller pyinstaller --onedir --windowed --icon=app_icon.ico --name=ImageViewer --paths=src --add-data "app_icon.ico;." --add-data "app_icon_256.png;." src\main.py
+if exist tools\upx.exe (
+    uv run --with pyqt6 --with pyinstaller pyinstaller --onedir --windowed --icon=app_icon.ico --name=ImageViewer --paths=src --add-data "app_icon.ico;." --add-data "app_icon_256.png;." --upx-dir tools src\main.py
+) else (
+    uv run --with pyqt6 --with pyinstaller pyinstaller --onedir --windowed --icon=app_icon.ico --name=ImageViewer --paths=src --add-data "app_icon.ico;." --add-data "app_icon_256.png;." src\main.py
+)
 echo.
 if exist dist\ImageViewer\ImageViewer.exe (
     echo [OK] dist\ImageViewer\ImageViewer.exe
