@@ -6,21 +6,22 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeView, QAbstractItemView, QMenu,
 )
-from PyQt6.QtCore import pyqtSignal, QDir, Qt, QModelIndex
+from PyQt6.QtCore import (
+    pyqtSignal, QDir, Qt, QModelIndex, QObject, QRunnable, QThreadPool,
+)
 from PyQt6.QtGui import QFileSystemModel, QPixmap, QPainter, QPainterPath, QColor
 
 _ARROW_PATHS: dict[str, str] = {}
 
 
 def _ensure_arrow_paths() -> dict[str, str]:
-    """Generate branch arrow PNG files once and cache their paths."""
     global _ARROW_PATHS
     if _ARROW_PATHS:
         return _ARROW_PATHS
     tmpdir = tempfile.gettempdir()
     shapes = {
-        "closed": [(2.5, 1.5), (8.5, 5.0), (2.5, 8.5)],   # ▶ right-pointing
-        "open":   [(1.5, 2.5), (8.5, 2.5), (5.0, 8.5)],   # ▼ down-pointing
+        "closed": [(2.5, 1.5), (8.5, 5.0), (2.5, 8.5)],
+        "open":   [(1.5, 2.5), (8.5, 2.5), (5.0, 8.5)],
     }
     for name, pts in shapes.items():
         px = QPixmap(10, 10)
@@ -40,12 +41,43 @@ def _ensure_arrow_paths() -> dict[str, str]:
     return _ARROW_PATHS
 
 
+# ---------------------------------------------------------------------------
+# Async subdir check
+# ---------------------------------------------------------------------------
+
+class _CheckSignals(QObject):
+    done = pyqtSignal(str, bool)   # path, has_subdir
+
+
+class _DirCheckRunnable(QRunnable):
+    def __init__(self, path: str, signals: _CheckSignals):
+        super().__init__()
+        self._path = path
+        self._signals = signals
+        self.setAutoDelete(True)
+
+    def run(self):
+        try:
+            has = any(e.is_dir() for e in os.scandir(self._path))
+        except OSError:
+            has = False
+        self._signals.done.emit(self._path, has)
+
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+
 class FolderOnlyModel(QFileSystemModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
-        self._subdir_cache: dict[str, bool] = {}
-        self.directoryLoaded.connect(lambda p: self._subdir_cache.pop(p, None))
+        self._cache: dict[str, bool] = {}   # path → has_subdir
+        self._pending: set[str] = set()
+        self._pool = QThreadPool.globalInstance()
+        self._signals = _CheckSignals()
+        self._signals.done.connect(self._on_check_done)
+        self.directoryLoaded.connect(self._on_dir_loaded)
 
     def columnCount(self, parent=QModelIndex()) -> int:
         return 1
@@ -53,16 +85,49 @@ class FolderOnlyModel(QFileSystemModel):
     def hasChildren(self, parent=QModelIndex()) -> bool:
         if not parent.isValid():
             return self.rowCount() > 0
-        path = self.filePath(parent)
-        if path not in self._subdir_cache:
-            try:
-                self._subdir_cache[path] = any(
-                    e.is_dir() for e in Path(path).iterdir()
-                )
-            except OSError:
-                self._subdir_cache[path] = False
-        return self._subdir_cache[path]
 
+        path = self.filePath(parent)
+
+        # Use cached value if ready
+        cached = self._cache.get(path)
+        if cached is not None:
+            return cached
+
+        # If Qt's model already determined no children (dir loaded & empty), trust it
+        if not super().hasChildren(parent):
+            self._cache[path] = False
+            return False
+
+        # Qt says True (either has children or not loaded yet).
+        # Schedule an async check if not already in flight.
+        if path not in self._pending:
+            self._pending.add(path)
+            self._pool.start(_DirCheckRunnable(path, self._signals))
+
+        return True  # Optimistic until async check returns
+
+    def _on_check_done(self, path: str, has: bool):
+        self._pending.discard(path)
+        old = self._cache.get(path)
+        self._cache[path] = has
+        if old != has:
+            idx = self.index(path)
+            if idx.isValid():
+                # Trigger repaint so hasChildren is re-evaluated
+                self.dataChanged.emit(idx, idx)
+
+    def _on_dir_loaded(self, path: str):
+        # Qt loaded this dir; clear cache so Qt's accurate result is used next paint
+        self._cache.pop(path, None)
+        self._pending.discard(path)
+        idx = self.index(path)
+        if idx.isValid():
+            self.dataChanged.emit(idx, idx)
+
+
+# ---------------------------------------------------------------------------
+# Panel
+# ---------------------------------------------------------------------------
 
 class FolderTreePanel(QWidget):
     folder_selected = pyqtSignal(Path)

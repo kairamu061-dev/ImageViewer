@@ -110,9 +110,9 @@ class ImageCanvas(QWidget):
         delta = event.angleDelta().y()
         if self.swap_mode:
             if delta > 0:
-                self.next_requested.emit()
-            else:
                 self.prev_requested.emit()
+            else:
+                self.next_requested.emit()
         else:
             self._apply_zoom(1.1 if delta > 0 else 0.9)
 
