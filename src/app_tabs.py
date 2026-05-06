@@ -77,6 +77,7 @@ class AppTabWidget(QTabWidget):
 
         self._fav_model = FavoritesModel(self)
         self._fav_tab: FavoritesTab | None = None
+        self._default_swap_mode = True   # global preference; persisted in state
 
         corner = QWidget()
         row = QHBoxLayout(corner)
@@ -126,6 +127,7 @@ class AppTabWidget(QTabWidget):
         idx = self.addTab(content, "新しいタブ")
         self._attach_close_btn(idx, content)
         content.title_changed.connect(lambda t, c=content: self._update_title(c, t))
+        content._viewer.set_swap_mode(self._default_swap_mode)
         self.setCurrentIndex(idx)
         if root:
             content.set_root(root)
@@ -134,6 +136,7 @@ class AppTabWidget(QTabWidget):
     def _toggle_favorites(self):
         if self._fav_tab is None:
             self._fav_tab = FavoritesTab(self._fav_model, self)
+            self._fav_tab._viewer.set_swap_mode(self._default_swap_mode)
             idx = self.addTab(self._fav_tab, "お気に入り")
             self._attach_close_btn(idx, self._fav_tab)
             self._fav_tab.title_changed.connect(
@@ -168,6 +171,13 @@ class AppTabWidget(QTabWidget):
     # State
     # ------------------------------------------------------------------
 
+    def _get_swap_mode(self) -> bool:
+        for i in range(self.count()):
+            w = self.widget(i)
+            if hasattr(w, "_viewer"):
+                return w._viewer.get_swap_mode()
+        return self._default_swap_mode
+
     def get_state(self) -> dict:
         fav_tab_open = self._fav_tab is not None
         fav_splitter = self._fav_tab.get_splitter_sizes() if self._fav_tab else [220, 980]
@@ -182,15 +192,19 @@ class AppTabWidget(QTabWidget):
             "favorites_data": self._fav_model.to_json(),
             "favorites_tab_open": fav_tab_open,
             "favorites_splitter": fav_splitter,
+            "swap_mode": self._get_swap_mode(),
         }
 
     def restore_state(self, state: dict):
+        # Restore global preference before creating tabs
+        self._default_swap_mode = state.get("swap_mode", True)
+
         fav_data = state.get("favorites_data", [])
         if fav_data:
             self._fav_model.from_json(fav_data)
 
         for tab_state in state.get("tabs", []):
-            content = self.add_new_tab()
+            content = self.add_new_tab()   # applies _default_swap_mode
             content.restore_state(tab_state)
 
         if state.get("favorites_tab_open"):

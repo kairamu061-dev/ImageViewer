@@ -41,14 +41,15 @@ class ImageViewerPanel(QWidget):
         self._slider = HoverSlider(self)
 
         # Swap toggle button (overlay, top-right)
-        self._swap_btn = QPushButton("W:拡縮", self)
+        self._swap_btn = QPushButton("W:移動", self)
         self._swap_btn.setCheckable(True)
         self._swap_btn.setFixedSize(72, 22)
         self._swap_btn.setToolTip(
-            "ホイール=拡縮 / サイドボタン=移動\nクリックで切り替え"
+            "ホイール=移動 / サイドボタン=拡縮\nクリックで切り替え"
         )
         self._swap_btn.setStyleSheet(_SWAP_BTN_STYLE)
         self._swap_btn.toggled.connect(self._on_swap_toggled)
+        self._swap_btn.setChecked(True)   # default: wheel=navigate
         self._swap_btn.raise_()
 
         layout = QVBoxLayout(self)
@@ -62,6 +63,13 @@ class ImageViewerPanel(QWidget):
         self._slider.index_changed.connect(self._on_slider_changed)
 
         self.setStyleSheet("background: #1E1E1E;")
+
+    def get_swap_mode(self) -> bool:
+        return self._swap_btn.isChecked()
+
+    def set_swap_mode(self, mode: bool):
+        if self._swap_btn.isChecked() != mode:
+            self._swap_btn.setChecked(mode)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

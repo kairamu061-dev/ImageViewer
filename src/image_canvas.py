@@ -22,7 +22,7 @@ class ImageCanvas(QWidget):
         self._in_bottom_zone = False
         self._drag_start: QPoint | None = None
         self._drag_offset_at_start = QPoint(0, 0)
-        self.swap_mode = False  # False: wheel=zoom, XBtn=nav; True: wheel=nav, XBtn=zoom
+        self.swap_mode = True   # False: wheel=zoom, XBtn=nav; True: wheel=nav, XBtn=zoom
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setStyleSheet("background: #1E1E1E;")
