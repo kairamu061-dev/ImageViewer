@@ -29,6 +29,15 @@ desktop.ini
 *.swp
 *~
 
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+dist/
+build/
+*.spec
+src/__pycache__/
+
 # ===== Secrets =====
 *.env
 appsettings.*.json
