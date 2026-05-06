@@ -55,7 +55,7 @@ class FavoritesTab(QWidget):
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
+        outer.setSpacing(4)
         outer.addWidget(self._toggle_btn)
         outer.addWidget(self._splitter)
 
