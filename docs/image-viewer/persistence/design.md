@@ -1,33 +1,45 @@
-# {機能エリア名} 設計
+# persistence 設計
 
 ## 技術選定
 
 | 技術 | 用途 | 選定理由 |
 |------|------|----------|
-|      |      |          |
+| JSON | 状態ファイル形式 | 人間が読めてデバッグしやすい。Python 標準ライブラリで扱える |
+| Path.home() / .image_viewer_state.json | 保存先 | ユーザーホームは確実に書き込み可能で OS 横断的に使える |
 
 ## アーキテクチャ
 
-<!-- コンポーネント構成を図や箇条書きで記述する -->
-
-## データ構造
-
-<!-- 主要なデータモデル・スキーマを記述する -->
-
 ```
-{型・スキーマ定義}
+state_manager.py
+  ├── save(state: dict) → ~/.image_viewer_state.json
+  └── load() → dict | {}  (エラー時は空 dict)
+
+MainWindow.closeEvent
+  └── tabs.get_state() → state_manager.save(state + window geometry)
+
+MainWindow._restore_state
+  └── state_manager.load() → tabs.restore_state(state) + window geometry
 ```
 
 ## インターフェース
 
-<!-- API・関数インターフェースを記述する -->
+```python
+# state_manager.py
+def save(state: dict) -> None: ...
+def load() -> dict: ...   # 失敗時は {} を返す
 
-```
-{インターフェース定義}
+# AppTabWidget
+def get_state(self) -> dict: ...
+def restore_state(self, state: dict) -> None: ...
+
+# TabContent
+def get_state(self) -> dict: ...
+def restore_state(self, state: dict) -> None: ...
 ```
 
 ## 依存関係
 
 | ライブラリ / サービス | 用途 |
 |-----------------------|------|
-|                       |      |
+| Python 標準 json | JSON シリアライズ/デシリアライズ |
+| Python 標準 pathlib.Path | ファイルパス操作 |

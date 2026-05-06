@@ -1,14 +1,16 @@
-# {機能エリア名} タスク
+# favorites タスク
 
 ## 実装タスク一覧
 
-<!-- ステータス: [ ] 未着手 / [~] 進行中 / [x] 完了 -->
-
-- [ ] {タスク名}
-- [ ] {タスク名}
+- [x] FavoritesModel 実装（QStandardItemModel + JSON シリアライズ）
+- [x] FavoritesPanel 実装（D&D ツリー + コンテキストメニュー）
+- [x] FavoritesTab 実装（FavoritesPanel + ImageViewer + 折りたたみボタン）
+- [x] 通常タブのコンテキストメニューに「お気に入りに追加」追加
+- [x] AppTabWidget への FavoritesModel 登録・シグナル接続
+- [x] お気に入りパネルの展開/折りたたみ矢印アイコン
 
 ## 依存関係
 
-<!-- タスク間の順序制約を記述する -->
-
-- {タスクA} → {タスクB}（AはBの前提）
+- FavoritesModel → FavoritesPanel → FavoritesTab
+- FavoritesTab → AppTabWidget（`☆/★` ボタン制御）
+- FolderTreePanel の `add_to_favorites` シグナル → AppTabWidget → FavoritesModel

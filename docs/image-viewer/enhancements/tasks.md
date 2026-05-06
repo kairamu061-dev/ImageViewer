@@ -1,14 +1,20 @@
-# {機能エリア名} タスク
+# enhancements タスク
 
 ## 実装タスク一覧
 
-<!-- ステータス: [ ] 未着手 / [~] 進行中 / [x] 完了 -->
-
-- [ ] {タスク名}
-- [ ] {タスク名}
+- [x] JumpSlider 実装
+- [x] ImageCanvas ドラッグパン + クランプ
+- [x] ImageCanvas スワップモード対応
+- [x] ImageViewerPanel スワップボタン追加
+- [x] ImageViewerPanel 兄弟フォルダ移動
+- [x] FolderTreePanel コンテキストメニュー
+- [x] TabContent フォルダパネル折りたたみボタン
+- [x] FavoritesTab フォルダパネル折りたたみボタン
+- [x] スワップモードのデフォルト変更（ホイール=移動）
+- [x] スワップモードの状態保存/復元
 
 ## 依存関係
 
-<!-- タスク間の順序制約を記述する -->
-
-- {タスクA} → {タスクB}（AはBの前提）
+- JumpSlider → HoverSlider（差し替え）
+- ImageCanvas スワップモード → ImageViewerPanel スワップボタン
+- FolderTreePanel コンテキストメニュー → TabContent シグナル中継 → AppTabWidget
