@@ -3,7 +3,7 @@ echo ========================================
 echo  ImageViewer Build (folder)
 echo ========================================
 echo.
-uv run --with pyinstaller pyinstaller --onedir --windowed --icon=app_icon.ico --name=ImageViewer --paths=src --add-data "app_icon.ico;." --add-data "app_icon_256.png;." src\main.py
+uv run --with pyqt6 --with pyinstaller pyinstaller --onedir --windowed --icon=app_icon.ico --name=ImageViewer --paths=src --add-data "app_icon.ico;." --add-data "app_icon_256.png;." src\main.py
 echo.
 if exist dist\ImageViewer\ImageViewer.exe (
     echo [OK] dist\ImageViewer\ImageViewer.exe

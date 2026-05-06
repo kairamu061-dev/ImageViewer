@@ -16,6 +16,8 @@ class ImageCanvas(QWidget):
         self._pixmap: QPixmap | None = None
         self._fit_pixmap: QPixmap | None = None
         self._fit_size: QSize = QSize()
+        self._zoom_pixmap: QPixmap | None = None
+        self._zoom_scale: float = -1.0
         self._scale = 1.0
         self._fit = True
         self._offset = QPoint(0, 0)
@@ -31,12 +33,15 @@ class ImageCanvas(QWidget):
         self._pixmap = pixmap
         self._fit = True
         self._fit_pixmap = None
+        self._zoom_pixmap = None
+        self._zoom_scale = -1.0
         self._offset = QPoint(0, 0)
         self.update()
 
     def clear(self):
         self._pixmap = None
         self._fit_pixmap = None
+        self._zoom_pixmap = None
         self.update()
 
     def _get_fit_pixmap(self) -> QPixmap | None:
@@ -51,6 +56,20 @@ class ImageCanvas(QWidget):
             )
             self._fit_size = current_size
         return self._fit_pixmap
+
+    def _get_zoom_pixmap(self) -> QPixmap | None:
+        if self._pixmap is None or self._pixmap.isNull():
+            return None
+        if self._zoom_pixmap is None or self._zoom_scale != self._scale:
+            w = int(self._pixmap.width() * self._scale)
+            h = int(self._pixmap.height() * self._scale)
+            self._zoom_pixmap = self._pixmap.scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._zoom_scale = self._scale
+        return self._zoom_pixmap
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -71,16 +90,11 @@ class ImageCanvas(QWidget):
                 y = (self.height() - scaled.height()) // 2
                 painter.drawPixmap(x, y, scaled)
         else:
-            w = int(self._pixmap.width() * self._scale)
-            h = int(self._pixmap.height() * self._scale)
-            scaled = self._pixmap.scaled(
-                w, h,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            x = (self.width() - scaled.width()) // 2 + self._offset.x()
-            y = (self.height() - scaled.height()) // 2 + self._offset.y()
-            painter.drawPixmap(x, y, scaled)
+            scaled = self._get_zoom_pixmap()
+            if scaled:
+                x = (self.width() - scaled.width()) // 2 + self._offset.x()
+                y = (self.height() - scaled.height()) // 2 + self._offset.y()
+                painter.drawPixmap(x, y, scaled)
 
     def _clamp_offset(self, offset: QPoint) -> QPoint:
         if self._pixmap is None or self._pixmap.isNull():
@@ -103,6 +117,7 @@ class ImageCanvas(QWidget):
             self._scale = min(fw, fh)
             self._fit = False
         self._scale = max(0.05, min(self._scale * factor, 20.0))
+        self._zoom_pixmap = None   # invalidate zoom cache on scale change
         self._offset = self._clamp_offset(self._offset)
         self.update()
 
