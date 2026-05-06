@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, Qt
 from favorites_model import FavoritesModel, ITEM_DATA_ROLE, KIND_FOLDER, KIND_GROUP
 from PyQt6.QtGui import QStandardItem
+from folder_tree import _ensure_arrow_paths
 
 
 class FavoritesPanel(QWidget):
@@ -20,7 +21,7 @@ class FavoritesPanel(QWidget):
         self._tree.setHeaderHidden(True)
         self._tree.setAnimated(True)
         self._tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self._tree.setIndentation(16)
+        self._tree.setIndentation(18)
         self._tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self._tree.setDefaultDropAction(Qt.DropAction.MoveAction)
         self._tree.setDropIndicatorShown(True)
@@ -35,31 +36,43 @@ class FavoritesPanel(QWidget):
         self._apply_style()
 
     def _apply_style(self):
-        self.setStyleSheet("""
-            QTreeView {
+        arrows = _ensure_arrow_paths()
+        closed = arrows.get("closed", "")
+        opened = arrows.get("open", "")
+        self.setStyleSheet(f"""
+            QTreeView {{
                 background: #252526;
                 color: #CCCCCC;
                 border: none;
                 font-size: 13px;
-            }
-            QTreeView::item:selected {
+            }}
+            QTreeView::item {{
+                padding: 2px 0;
+            }}
+            QTreeView::item:selected {{
                 background: #2196F3;
                 color: white;
-            }
-            QTreeView::item:hover:!selected {
+            }}
+            QTreeView::item:hover:!selected {{
                 background: #2d2d30;
-            }
-            QTreeView::branch {
+            }}
+            QTreeView::branch {{
                 background: #252526;
-            }
-            QMenu {
+            }}
+            QTreeView::branch:has-children:closed {{
+                image: url({closed});
+            }}
+            QTreeView::branch:open:has-children {{
+                image: url({opened});
+            }}
+            QMenu {{
                 background: #2d2d30;
                 color: #CCCCCC;
                 border: 1px solid #3c3c3c;
-            }
-            QMenu::item:selected {
+            }}
+            QMenu::item:selected {{
                 background: #2196F3;
-            }
+            }}
         """)
 
     def _on_clicked(self, index):
@@ -79,16 +92,18 @@ class FavoritesPanel(QWidget):
         if index.isValid():
             item = self._model.itemFromIndex(index)
             d = item.data(ITEM_DATA_ROLE) or {}
-            kind = d.get("kind")
-            if kind == KIND_GROUP:
-                rename_act = menu.addAction("名前を変更")
-                rename_act.triggered.connect(lambda: self._rename_group(item))
+            if d.get("kind") == KIND_GROUP:
+                menu.addAction("名前を変更").triggered.connect(
+                    lambda: self._rename_group(item)
+                )
                 menu.addSeparator()
-            del_act = menu.addAction("削除")
-            del_act.triggered.connect(lambda: self._model.remove_item(item))
+            menu.addAction("削除").triggered.connect(
+                lambda: self._model.remove_item(item)
+            )
         else:
-            add_act = menu.addAction("階層を追加")
-            add_act.triggered.connect(lambda: self._model.add_group())
+            menu.addAction("階層を追加").triggered.connect(
+                lambda: self._model.add_group()
+            )
 
         menu.exec(self._tree.viewport().mapToGlobal(pos))
 

@@ -1,10 +1,29 @@
 from __future__ import annotations
 from pathlib import Path
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton
 from PyQt6.QtCore import pyqtSignal
 from image_canvas import ImageCanvas
 from hover_slider import HoverSlider
 from image_cache import ImageCache, SUPPORTED_EXTS
+
+_SWAP_BTN_STYLE = """
+    QPushButton {
+        background: rgba(40, 40, 40, 210);
+        color: #aaa;
+        border: 1px solid #555;
+        border-radius: 3px;
+        font-size: 11px;
+        padding: 0 4px;
+    }
+    QPushButton:checked {
+        background: rgba(33, 150, 243, 180);
+        color: #fff;
+        border-color: #2196F3;
+    }
+    QPushButton:hover {
+        color: #fff;
+    }
+"""
 
 
 class ImageViewerPanel(QWidget):
@@ -21,6 +40,17 @@ class ImageViewerPanel(QWidget):
         self._canvas = ImageCanvas(self)
         self._slider = HoverSlider(self)
 
+        # Swap toggle button (overlay, top-right)
+        self._swap_btn = QPushButton("W:拡縮", self)
+        self._swap_btn.setCheckable(True)
+        self._swap_btn.setFixedSize(72, 22)
+        self._swap_btn.setToolTip(
+            "ホイール=拡縮 / サイドボタン=移動\nクリックで切り替え"
+        )
+        self._swap_btn.setStyleSheet(_SWAP_BTN_STYLE)
+        self._swap_btn.toggled.connect(self._on_swap_toggled)
+        self._swap_btn.raise_()
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -36,10 +66,26 @@ class ImageViewerPanel(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._reposition_slider()
+        b = self._swap_btn
+        b.move(self.width() - b.width() - 6, 6)
+        b.raise_()
 
     def _reposition_slider(self):
         h = 48
         self._slider.setGeometry(0, self.height() - h, self.width(), h)
+
+    def _on_swap_toggled(self, checked: bool):
+        self._canvas.swap_mode = checked
+        if checked:
+            self._swap_btn.setText("W:移動")
+            self._swap_btn.setToolTip(
+                "ホイール=移動 / サイドボタン=拡縮\nクリックで切り替え"
+            )
+        else:
+            self._swap_btn.setText("W:拡縮")
+            self._swap_btn.setToolTip(
+                "ホイール=拡縮 / サイドボタン=移動\nクリックで切り替え"
+            )
 
     def load_folder(self, folder: Path, initial_index: int = 0):
         try:

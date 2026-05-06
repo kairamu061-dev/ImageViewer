@@ -49,7 +49,7 @@ class TabContent(QWidget):
         self._toggle_btn = QToolButton(self)
         self._toggle_btn.setFixedWidth(16)
         self._toggle_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        self._toggle_btn.setText("◀")
+        self._toggle_btn.setText("<")
         self._toggle_btn.setToolTip("フォルダビューを閉じる")
         self._toggle_btn.setStyleSheet(_TOGGLE_STYLE)
         self._toggle_btn.clicked.connect(self._toggle_folder_panel)
@@ -135,17 +135,19 @@ class TabContent(QWidget):
         if sizes[0] > 0:
             self._stored_folder_width = sizes[0]
             self._splitter.setSizes([0, sum(sizes)])
+            self._update_toggle_btn(0)
         else:
             total = sum(sizes)
             self._splitter.setSizes([self._stored_folder_width, total - self._stored_folder_width])
+            self._update_toggle_btn(self._stored_folder_width)
 
     def _on_splitter_moved(self, pos: int, index: int):
         self._update_toggle_btn(self._splitter.sizes()[0])
 
     def _update_toggle_btn(self, folder_width: int):
         if folder_width == 0:
-            self._toggle_btn.setText("▶")
+            self._toggle_btn.setText(">")
             self._toggle_btn.setToolTip("フォルダビューを開く")
         else:
-            self._toggle_btn.setText("◀")
+            self._toggle_btn.setText("<")
             self._toggle_btn.setToolTip("フォルダビューを閉じる")

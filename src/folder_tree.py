@@ -44,9 +44,24 @@ class FolderOnlyModel(QFileSystemModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
+        self._subdir_cache: dict[str, bool] = {}
+        self.directoryLoaded.connect(lambda p: self._subdir_cache.pop(p, None))
 
     def columnCount(self, parent=QModelIndex()) -> int:
         return 1
+
+    def hasChildren(self, parent=QModelIndex()) -> bool:
+        if not parent.isValid():
+            return self.rowCount() > 0
+        path = self.filePath(parent)
+        if path not in self._subdir_cache:
+            try:
+                self._subdir_cache[path] = any(
+                    e.is_dir() for e in Path(path).iterdir()
+                )
+            except OSError:
+                self._subdir_cache[path] = False
+        return self._subdir_cache[path]
 
 
 class FolderTreePanel(QWidget):

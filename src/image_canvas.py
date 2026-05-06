@@ -22,6 +22,7 @@ class ImageCanvas(QWidget):
         self._in_bottom_zone = False
         self._drag_start: QPoint | None = None
         self._drag_offset_at_start = QPoint(0, 0)
+        self.swap_mode = False  # False: wheel=zoom, XBtn=nav; True: wheel=nav, XBtn=zoom
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setStyleSheet("background: #1E1E1E;")
@@ -93,8 +94,7 @@ class ImageCanvas(QWidget):
             max(-max_y, min(max_y, offset.y())),
         )
 
-    def wheelEvent(self, event):
-        delta = event.angleDelta().y()
+    def _apply_zoom(self, factor: float):
         if self._pixmap is None or self._pixmap.isNull():
             return
         if self._fit:
@@ -102,11 +102,19 @@ class ImageCanvas(QWidget):
             fh = self.height() / self._pixmap.height()
             self._scale = min(fw, fh)
             self._fit = False
-
-        factor = 1.1 if delta > 0 else 0.9
         self._scale = max(0.05, min(self._scale * factor, 20.0))
         self._offset = self._clamp_offset(self._offset)
         self.update()
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        if self.swap_mode:
+            if delta > 0:
+                self.next_requested.emit()
+            else:
+                self.prev_requested.emit()
+        else:
+            self._apply_zoom(1.1 if delta > 0 else 0.9)
 
     def mousePressEvent(self, event):
         btn = event.button()
@@ -115,9 +123,15 @@ class ImageCanvas(QWidget):
             self._drag_offset_at_start = QPoint(self._offset)
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif btn == Qt.MouseButton.XButton2:
-            self.next_requested.emit()
+            if self.swap_mode:
+                self._apply_zoom(1.1)
+            else:
+                self.next_requested.emit()
         elif btn == Qt.MouseButton.XButton1:
-            self.prev_requested.emit()
+            if self.swap_mode:
+                self._apply_zoom(0.9)
+            else:
+                self.prev_requested.emit()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
