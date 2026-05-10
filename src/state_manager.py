@@ -1,12 +1,15 @@
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 
-STATE_FILE = Path.home() / ".image_viewer_state.json"
+_APP_DIR = Path(os.environ.get("APPDATA") or Path.home()) / "ImageViewer"
+STATE_FILE = _APP_DIR / "state.json"
 
 
 def save(state: dict):
     try:
+        _APP_DIR.mkdir(parents=True, exist_ok=True)
         with open(STATE_FILE, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
     except Exception:
@@ -15,6 +18,11 @@ def save(state: dict):
 
 def load() -> dict:
     try:
+        # migrate from old location
+        old = Path.home() / ".image_viewer_state.json"
+        if old.exists() and not STATE_FILE.exists():
+            _APP_DIR.mkdir(parents=True, exist_ok=True)
+            old.rename(STATE_FILE)
         if STATE_FILE.exists():
             with open(STATE_FILE, encoding="utf-8") as f:
                 return json.load(f)
