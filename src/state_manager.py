@@ -18,11 +18,6 @@ def save(state: dict):
 
 def load() -> dict:
     try:
-        # migrate from old location
-        old = Path.home() / ".image_viewer_state.json"
-        if old.exists() and not STATE_FILE.exists():
-            _APP_DIR.mkdir(parents=True, exist_ok=True)
-            old.rename(STATE_FILE)
         if STATE_FILE.exists():
             with open(STATE_FILE, encoding="utf-8") as f:
                 return json.load(f)
