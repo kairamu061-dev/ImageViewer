@@ -1,5 +1,7 @@
 # ドキュメント一覧
 
+![ImageViewer App Mockup](./assets/image_viewer_mockup.png)
+
 ## プロジェクト概要
 - [project_overview](./project_overview.md)
 - [glossary](./glossary.md)
