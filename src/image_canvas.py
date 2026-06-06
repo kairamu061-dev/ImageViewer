@@ -129,7 +129,7 @@ class ImageCanvas(QWidget):
             else:
                 self.next_requested.emit()
         else:
-            self._apply_zoom(1.1 if delta > 0 else 0.9)
+            self._apply_zoom(1.2 if delta > 0 else 1 / 1.2)
 
     def mousePressEvent(self, event):
         btn = event.button()
@@ -139,12 +139,12 @@ class ImageCanvas(QWidget):
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif btn == Qt.MouseButton.XButton2:
             if self.swap_mode:
-                self._apply_zoom(1.1)
+                self._apply_zoom(1.2)
             else:
                 self.next_requested.emit()
         elif btn == Qt.MouseButton.XButton1:
             if self.swap_mode:
-                self._apply_zoom(0.9)
+                self._apply_zoom(1 / 1.2)
             else:
                 self.prev_requested.emit()
 
