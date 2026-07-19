@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal, QRunnable, QThreadPool, QObject
 from PyQt6.QtGui import QPixmap, QIcon, QImageReader
 
 COLUMNS = 5
-THUMB_SIZE = 256   # max decode size (px, long side)
+THUMB_SIZE = 384   # max decode size (px, long side)
 
 _GRID_STYLE = """
     QListWidget {
@@ -159,6 +159,18 @@ class ThumbnailGridView(QListWidget):
         hint = QSize(cell, cell)
         for i in range(self.count()):
             self.item(i).setSizeHint(hint)
+
+    def wheelEvent(self, event):
+        # One wheel notch = one row; the default (wheelScrollLines x large
+        # cells) jumps nearly a full page
+        delta = event.angleDelta().y()
+        if delta == 0:
+            super().wheelEvent(event)
+            return
+        row_h = self._last_cell or self._cell_size()
+        sb = self.verticalScrollBar()
+        sb.setValue(sb.value() - round(delta / 120.0 * row_h))
+        event.accept()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

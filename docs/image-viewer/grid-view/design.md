@@ -35,7 +35,7 @@ ThumbnailGridView
     _images: list[Path]        # 表示対象（ImageViewerPanel と同一リスト）
     _generation: int           # フォルダ切替で increment、古い読込結果を破棄
     COLUMNS = 5                # 固定列数
-    THUMB_SIZE = 256           # デコード時の最大辺 px
+    THUMB_SIZE = 384           # デコード時の最大辺 px
 
 QListWidgetItem
     Qt.ItemDataRole.UserRole → int (画像 index)
