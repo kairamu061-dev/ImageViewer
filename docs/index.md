@@ -15,3 +15,4 @@
   - [tabs](./image-viewer/tabs/overview.md)
   - [favorites](./image-viewer/favorites/overview.md)
   - [persistence](./image-viewer/persistence/overview.md)
+  - [grid-view](./image-viewer/grid-view/overview.md)

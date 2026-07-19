@@ -1,8 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QStackedWidget
 from PyQt6.QtCore import pyqtSignal
 from image_canvas import ImageCanvas
+from grid_view import ThumbnailGridView
 from hover_slider import HoverSlider
 from image_cache import ImageCache, SUPPORTED_EXTS
 
@@ -38,7 +39,21 @@ class ImageViewerPanel(QWidget):
         self._folder: Path | None = None
 
         self._canvas = ImageCanvas(self)
+        self._grid = ThumbnailGridView(self)
         self._slider = HoverSlider(self)
+
+        self._stack = QStackedWidget(self)
+        self._stack.addWidget(self._canvas)
+        self._stack.addWidget(self._grid)
+
+        # View-mode toggle button (overlay, top-left)
+        self._mode_btn = QPushButton("一覧", self)
+        self._mode_btn.setCheckable(True)
+        self._mode_btn.setFixedSize(52, 22)
+        self._mode_btn.setToolTip("一覧表示に切り替え")
+        self._mode_btn.setStyleSheet(_SWAP_BTN_STYLE)
+        self._mode_btn.toggled.connect(self._on_mode_toggled)
+        self._mode_btn.raise_()
 
         # Swap toggle button (overlay, top-right)
         self._swap_btn = QPushButton("W:移動", self)
@@ -55,11 +70,12 @@ class ImageViewerPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self._canvas)
+        layout.addWidget(self._stack)
 
         self._canvas.next_requested.connect(self.next_image)
         self._canvas.prev_requested.connect(self.prev_image)
         self._canvas.hover_bottom.connect(self._on_hover_bottom)
+        self._grid.image_activated.connect(self._on_thumb_activated)
         self._slider.index_changed.connect(self._on_slider_changed)
 
         self.setStyleSheet("background: #1E1E1E;")
@@ -77,10 +93,13 @@ class ImageViewerPanel(QWidget):
         b = self._swap_btn
         b.move(self.width() - b.width() - 6, 6)
         b.raise_()
+        self._mode_btn.move(6, 6)
+        self._mode_btn.raise_()
 
     def _reposition_slider(self):
         h = 48
         self._slider.setGeometry(0, self.height() - h, self.width(), h)
+        self._slider.raise_()
 
     def _on_swap_toggled(self, checked: bool):
         self._canvas.swap_mode = checked
@@ -95,6 +114,24 @@ class ImageViewerPanel(QWidget):
                 "ホイール=拡縮 / サイドボタン=移動\nクリックで切り替え"
             )
 
+    def _on_mode_toggled(self, checked: bool):
+        if checked:
+            self._stack.setCurrentWidget(self._grid)
+            self._mode_btn.setText("1枚")
+            self._mode_btn.setToolTip("1枚表示に切り替え")
+            self._swap_btn.hide()
+            self._slider.hide()
+            self._grid.select_index(self._index)
+        else:
+            self._stack.setCurrentWidget(self._canvas)
+            self._mode_btn.setText("一覧")
+            self._mode_btn.setToolTip("一覧表示に切り替え")
+            self._swap_btn.show()
+
+    def _on_thumb_activated(self, index: int):
+        self._mode_btn.setChecked(False)   # back to single view
+        self.show_image(index)
+
     def load_folder(self, folder: Path, initial_index: int = 0):
         try:
             files = sorted(
@@ -108,6 +145,7 @@ class ImageViewerPanel(QWidget):
         self._images = files
         self._cache.set_folder(folder, files)
         self._slider.set_count(len(files))
+        self._grid.set_images(files)
 
         if files:
             if initial_index == -1:
@@ -119,6 +157,8 @@ class ImageViewerPanel(QWidget):
             self._canvas.set_pixmap(px)
             self._slider.set_index(idx)
             self._cache.preload(idx)
+            if self._mode_btn.isChecked():
+                self._grid.select_index(idx)
         else:
             self._index = 0
             self._canvas.clear()
@@ -183,7 +223,7 @@ class ImageViewerPanel(QWidget):
         return None
 
     def _on_hover_bottom(self, entered: bool):
-        if len(self._images) < 2:
+        if len(self._images) < 2 or self._mode_btn.isChecked():
             return
         if entered:
             self._slider.show_slider()
