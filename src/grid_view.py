@@ -160,17 +160,25 @@ class ThumbnailGridView(QListWidget):
         for i in range(self.count()):
             self.item(i).setSizeHint(hint)
 
+    def _scroll_step(self) -> int:
+        # One fifth of a row height per wheel notch / scrollbar arrow click
+        cell = self._last_cell or self._cell_size()
+        return max(1, cell // 5)
+
     def wheelEvent(self, event):
-        # One wheel notch = one row; the default (wheelScrollLines x large
-        # cells) jumps nearly a full page
         delta = event.angleDelta().y()
         if delta == 0:
             super().wheelEvent(event)
             return
-        row_h = self._last_cell or self._cell_size()
         sb = self.verticalScrollBar()
-        sb.setValue(sb.value() - round(delta / 120.0 * row_h))
+        sb.setValue(sb.value() - round(delta / 120.0 * self._scroll_step()))
         event.accept()
+
+    def updateGeometries(self):
+        # QListView resets the scrollbar singleStep here; re-apply ours so the
+        # arrow buttons match the wheel step
+        super().updateGeometries()
+        self.verticalScrollBar().setSingleStep(self._scroll_step())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
