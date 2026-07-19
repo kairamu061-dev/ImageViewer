@@ -1,6 +1,8 @@
 from __future__ import annotations
 from pathlib import Path
-from PyQt6.QtWidgets import QListWidget, QListWidgetItem, QListView, QAbstractItemView
+from PyQt6.QtWidgets import (
+    QListWidget, QListWidgetItem, QListView, QAbstractItemView, QStyle,
+)
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QRunnable, QThreadPool, QObject
 from PyQt6.QtGui import QPixmap, QIcon, QImageReader
 
@@ -108,6 +110,7 @@ class ThumbnailGridView(QListWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self._update_grid_size()
         if self._load_pending:
             self._start_loading()
 
@@ -137,7 +140,12 @@ class ThumbnailGridView(QListWidget):
             self.image_activated.emit(index)
 
     def _cell_size(self) -> int:
-        return max(1, self.viewport().width() // COLUMNS)
+        # Computed from the widget width instead of the viewport: while the
+        # widget is hidden (new tab, stacked page) the viewport does not yet
+        # account for the always-on scrollbar, which made 5 columns wrap to 4
+        sb = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent, None, self)
+        avail = self.width() - 2 * self.frameWidth() - sb - 2
+        return max(1, avail // COLUMNS)
 
     def _update_grid_size(self):
         cell = self._cell_size()
