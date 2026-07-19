@@ -68,6 +68,7 @@ class ThumbnailGridView(QListWidget):
         self._generation = 0
         self._images: list[Path] = []
         self._load_pending = False
+        self._last_cell = 0
         self._pool = QThreadPool.globalInstance()
         self._signals = _ThumbSignals()
         self._signals.done.connect(self._on_thumb_loaded)
@@ -92,10 +93,12 @@ class ThumbnailGridView(QListWidget):
         self._generation += 1
         self._images = images
         self.clear()
+        cell = self._cell_size()
         for i, path in enumerate(images):
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, i)
             item.setToolTip(path.name)
+            item.setSizeHint(QSize(cell, cell))
             self.addItem(item)
         self._update_grid_size()
         # Defer decoding until the grid is actually shown
@@ -133,10 +136,21 @@ class ThumbnailGridView(QListWidget):
         if index is not None:
             self.image_activated.emit(index)
 
+    def _cell_size(self) -> int:
+        return max(1, self.viewport().width() // COLUMNS)
+
     def _update_grid_size(self):
-        cell = max(1, self.viewport().width() // COLUMNS)
+        cell = self._cell_size()
+        if cell == self._last_cell:
+            return
+        self._last_cell = cell
         self.setGridSize(QSize(cell, cell))
         self.setIconSize(QSize(cell - 8, cell - 8))
+        # Explicit size hints: without them the item rect is derived from the
+        # (initially empty) icon and stays tiny even after thumbnails load
+        hint = QSize(cell, cell)
+        for i in range(self.count()):
+            self.item(i).setSizeHint(hint)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

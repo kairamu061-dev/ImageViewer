@@ -17,6 +17,7 @@
 |------|------|
 | `add-feature.sh` が CRLF 改行のため Linux 環境で実行エラー | LF に変換した一時コピーで実行した。リポジトリのファイル自体は未修正（要 LF 化 or `.gitattributes`） |
 | HoverSlider が QStackedWidget より背面になる | `_reposition_slider()` で `raise_()` するよう変更 |
+| サムネイルが米粒サイズで表示される（実機確認で発覚） | アイコン未設定時に QListWidget がアイテムの sizeHint を極小で確定し、uniformItemSizes でそれが全アイテムに固定されるため。各アイテムに `setSizeHint(セルサイズ)` を明示設定して修正。リサイズ時の全件更新はセルサイズ変化時のみ実行 |
 
 ## 設計からの変更点
 
