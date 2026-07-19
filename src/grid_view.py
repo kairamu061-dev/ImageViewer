@@ -161,9 +161,9 @@ class ThumbnailGridView(QListWidget):
             self.item(i).setSizeHint(hint)
 
     def _scroll_step(self) -> int:
-        # One fifth of a row height per wheel notch / scrollbar arrow click
+        # Two fifths of a row height per wheel notch / scrollbar arrow click
         cell = self._last_cell or self._cell_size()
-        return max(1, cell // 5)
+        return max(1, cell * 2 // 5)
 
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
