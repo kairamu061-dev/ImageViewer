@@ -35,3 +35,4 @@
 ## ユーザへの要望
 
 - この開発環境（Linux コンテナ）には Python / PyQt6 が無く実行確認ができない。Windows 側で `python src/main.py` を起動し、test-cases.md の I-01〜E-05 の確認をお願いしたい
+- 2026-07-19: コンテナ内の git 認証（IDE の askpass 経由）が応答せず push 不能。コミット 17aca0d 以降はローカルのみ。IDE リロード or ホスト側からの push が必要
