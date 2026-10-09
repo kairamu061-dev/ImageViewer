@@ -1,11 +1,25 @@
 from __future__ import annotations
 from pathlib import Path
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QStackedWidget
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QFileInfo, QCollator, Qt
 from image_canvas import ImageCanvas
 from grid_view import ThumbnailGridView
 from hover_slider import HoverSlider
 from image_cache import ImageCache, SUPPORTED_EXTS
+
+# Same engine/settings QFileSystemModel uses internally for the folder tree
+# (QCollator, numeric mode, case-insensitive), so sibling-folder order and
+# file-listing order match what's visually shown in the tree exactly —
+# including locale-aware ordering of non-ASCII (e.g. Japanese) names, which a
+# plain Unicode codepoint comparison cannot reproduce.
+_collator = QCollator()
+_collator.setNumericMode(True)
+_collator.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+
+def _natural_sort_key(path: Path):
+    return _collator.sortKey(path.name)
+
 
 _SWAP_BTN_STYLE = """
     QPushButton {
@@ -136,7 +150,7 @@ class ImageViewerPanel(QWidget):
         try:
             files = sorted(
                 [p for p in folder.iterdir() if p.suffix.lower() in SUPPORTED_EXTS],
-                key=lambda p: p.name.lower(),
+                key=_natural_sort_key,
             )
         except PermissionError:
             files = []
@@ -208,8 +222,11 @@ class ImageViewerPanel(QWidget):
         parent = self._folder.parent
         try:
             siblings = sorted(
-                [p for p in parent.iterdir() if p.is_dir()],
-                key=lambda p: p.name.lower(),
+                # Hidden dirs excluded to match the folder tree (QFileSystemModel),
+                # which never shows them and is never a navigation target either
+                [p for p in parent.iterdir()
+                 if p.is_dir() and not QFileInfo(str(p)).isHidden()],
+                key=_natural_sort_key,
             )
         except PermissionError:
             return None
