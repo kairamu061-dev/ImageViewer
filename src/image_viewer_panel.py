@@ -1,4 +1,6 @@
 from __future__ import annotations
+import re
+from functools import cmp_to_key
 from pathlib import Path
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QStackedWidget
 from PyQt6.QtCore import pyqtSignal, QFileInfo, QCollator, Qt
@@ -7,18 +9,36 @@ from grid_view import ThumbnailGridView
 from hover_slider import HoverSlider
 from image_cache import ImageCache, SUPPORTED_EXTS
 
-# Same engine/settings QFileSystemModel uses internally for the folder tree
-# (QCollator, numeric mode, case-insensitive), so sibling-folder order and
-# file-listing order match what's visually shown in the tree exactly —
-# including locale-aware ordering of non-ASCII (e.g. Japanese) names, which a
-# plain Unicode codepoint comparison cannot reproduce.
+# QCollator's own numericMode was tried first but proved unreliable for names
+# like "(C99)" vs "(C100)" (99 ended up sorted after 100). So digit runs are
+# split out and compared as plain Python ints -- always correct, no reliance
+# on the platform collation backend's own digit handling -- while the
+# remaining text is compared with QCollator so it still matches
+# QFileSystemModel's locale-aware order (e.g. Japanese reading order).
+_SPLIT_RE = re.compile(r'(\d+)')
 _collator = QCollator()
-_collator.setNumericMode(True)
 _collator.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
 
 
-def _natural_sort_key(path: Path):
-    return _collator.sortKey(path.name)
+def _compare_names(a: str, b: str) -> int:
+    segs_a = _SPLIT_RE.split(a)
+    segs_b = _SPLIT_RE.split(b)
+    for i in range(max(len(segs_a), len(segs_b))):
+        sa = segs_a[i] if i < len(segs_a) else ''
+        sb = segs_b[i] if i < len(segs_b) else ''
+        if i % 2 == 1:   # digit run -> compare numerically
+            na, nb = int(sa or 0), int(sb or 0)
+            if na != nb:
+                return -1 if na < nb else 1
+        else:             # surrounding text -> locale-aware compare
+            c = _collator.compare(sa, sb)
+            if c != 0:
+                return c
+    return 0
+
+
+def _natural_sort_cmp(a: Path, b: Path) -> int:
+    return _compare_names(a.name, b.name)
 
 
 _SWAP_BTN_STYLE = """
@@ -150,7 +170,7 @@ class ImageViewerPanel(QWidget):
         try:
             files = sorted(
                 [p for p in folder.iterdir() if p.suffix.lower() in SUPPORTED_EXTS],
-                key=_natural_sort_key,
+                key=cmp_to_key(_natural_sort_cmp),
             )
         except PermissionError:
             files = []
@@ -226,7 +246,7 @@ class ImageViewerPanel(QWidget):
                 # which never shows them and is never a navigation target either
                 [p for p in parent.iterdir()
                  if p.is_dir() and not QFileInfo(str(p)).isHidden()],
-                key=_natural_sort_key,
+                key=cmp_to_key(_natural_sort_cmp),
             )
         except PermissionError:
             return None
