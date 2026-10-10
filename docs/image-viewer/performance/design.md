@@ -18,9 +18,9 @@
 
 ```
 ImageCache
-  ├── _pool: QThreadPool(maxThreadCount=1)  ← globalInstance() から変更
-  │   （D: が内蔵HDDと判明。プリロードの並列読み込みが同一ドライブへの
-  │    ランダムシーク競合を招いていたため、完全直列化して緩和）
+  ├── _pool: QThreadPool(maxThreadCount=2)  ← globalInstance() から変更
+  │   （他プールとの分離が目的。調査中に一時的に1(完全直列)にしたが、
+  │    真因はデコード側と判明したため2に戻した）
   ├── _cache: OrderedDict[int, QPixmap]  (CACHE_LIMIT=60 でLRU)
   ├── _store(index, pixmap): 挿入 + move_to_end + 上限超過分を popitem
   ├── get() / get_sync(): ヒット時に move_to_end

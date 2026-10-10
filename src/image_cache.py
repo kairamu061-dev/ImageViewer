@@ -99,13 +99,13 @@ class ImageCache:
         self._images: list[Path] = []
         self._folder: Path | None = None
         self._generation = 0
-        # Dedicated, fully-serialized pool: the logged failures showed several
-        # preload workers hammering the same drive (confirmed internal HDD)
-        # with concurrent random-access reads for a second or more at a time.
-        # A spinning disk has none of an SSD's tolerance for concurrent seeks,
-        # so preload reads are serialized to one at a time to avoid that.
+        # Dedicated pool (not globalInstance()) so a folder's preloads don't
+        # contend with the grid/folder-tree pools. Capped low to keep random
+        # reads off a spinning disk modest; full serialization was tried while
+        # chasing the "no image" bug but that turned out to be a decode issue
+        # (see _load_qimage), not drive contention, so 2 is enough.
         self._pool = QThreadPool()
-        self._pool.setMaxThreadCount(1)
+        self._pool.setMaxThreadCount(2)
         self._signals = _LoadSignals()
         self._signals.done.connect(self._on_loaded)
 
