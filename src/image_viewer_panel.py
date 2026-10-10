@@ -4,13 +4,18 @@ import re
 from functools import cmp_to_key
 from pathlib import Path
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QStackedWidget
-from PyQt6.QtCore import pyqtSignal, QFileInfo, QCollator, Qt
+from PyQt6.QtCore import pyqtSignal, QFileInfo, QCollator, Qt, QTimer
 from image_canvas import ImageCanvas
 from grid_view import ThumbnailGridView
 from hover_slider import HoverSlider
 from image_cache import ImageCache, SUPPORTED_EXTS
 
 logger = logging.getLogger(__name__)
+
+# Backoff delays (ms) for retrying a failed decode -- logged failures kept
+# failing for most of a second even with an immediate retry, so this gives an
+# external, longer-lived block (AV scan, cloud-sync lock, etc.) time to clear
+_RETRY_DELAYS_MS = (300, 1000, 3000)
 
 # QCollator's own numericMode was tried first but proved unreliable for names
 # like "(C99)" vs "(C100)" (99 ended up sorted after 100). So digit runs are
@@ -213,10 +218,34 @@ class ImageViewerPanel(QWidget):
         if px is None and 0 <= index < len(self._images):
             logger.warning("show_image: no pixmap for index=%d path=%s",
                             index, self._images[index])
+            self._schedule_retry(index, self._folder, 0)
         self._canvas.set_pixmap(px)
         self._slider.set_index(index)
         self._cache.preload(index)
         self.image_changed.emit()
+
+    def _schedule_retry(self, index: int, folder: Path | None, attempt: int):
+        # The failures logged so far keep failing for close to a second even
+        # with an immediate retry, which points to a longer-lived external
+        # block (AV scan, cloud-sync lock, etc.) rather than a one-off glitch.
+        # Back off and retry a few times instead of giving up immediately.
+        if attempt >= len(_RETRY_DELAYS_MS):
+            logger.warning("giving up after retries: index=%d path=%s",
+                            index, self._images[index])
+            return
+        delay = _RETRY_DELAYS_MS[attempt]
+        QTimer.singleShot(delay, lambda: self._retry_show_image(index, folder, attempt))
+
+    def _retry_show_image(self, index: int, folder: Path | None, attempt: int):
+        if (self._folder != folder or self._index != index
+                or not (0 <= index < len(self._images))):
+            return   # user has moved on (different folder/index); drop this stale retry
+        px = self._cache.get_sync(index)
+        if px is not None:
+            logger.info("delayed retry succeeded: index=%d attempt=%d", index, attempt + 1)
+            self._canvas.set_pixmap(px)
+            return
+        self._schedule_retry(index, folder, attempt + 1)
 
     def next_image(self):
         if not self._images:
