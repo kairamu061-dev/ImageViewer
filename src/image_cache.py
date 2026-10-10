@@ -22,15 +22,27 @@ def _load_qimage(path: Path) -> QImage | None:
     try:
         reader = QImageReader(str(path))
         reader.setAutoTransform(True)   # Honour EXIF orientation
-        # Querying size() first (same as grid_view._load_thumb does for its
-        # scaled decode) makes the plugin parse the header before read().
-        # The thumbnail path -- identical otherwise -- never showed this bug,
-        # so the missing size() call here is the prime suspect.
-        reader.size()
+        img = reader.read()
+        if not img.isNull():
+            return img
+        logger.warning("decode failed: %s (%s)", path, reader.errorString())
+
+        # Fallback: a plain full-resolution read() can deterministically fail
+        # for a file that the thumbnail grid's scaled decode (setScaledSize)
+        # always succeeds on. Requesting the native size via setScaledSize
+        # routes through that same, more tolerant decode path while keeping
+        # full resolution (no actual downscaling happens).
+        reader = QImageReader(str(path))
+        reader.setAutoTransform(True)
+        native_size = reader.size()
+        if native_size.isValid():
+            reader.setScaledSize(native_size)
         img = reader.read()
         if img.isNull():
-            logger.warning("decode failed: %s (%s)", path, reader.errorString())
+            logger.warning("scaled-fallback decode also failed: %s (%s)",
+                            path, reader.errorString())
             return None
+        logger.info("scaled-fallback decode succeeded: %s", path)
         return img
     except Exception:
         logger.exception("exception while decoding: %s", path)
@@ -99,13 +111,11 @@ class ImageCache:
                 return None
             path = self._images[index]
 
+        # _load_qimage already tries a plain read and a scaled-decode
+        # fallback internally; a blind outer retry here proved useless since
+        # the observed failures are deterministic (same file, same result
+        # every time), not a one-off glitch.
         qimage = _load_qimage(path)
-        if qimage is None:
-            # Retry once: a transient I/O hiccup (e.g. antivirus/cloud-sync lock)
-            # shouldn't permanently show "no image" for an otherwise-valid file
-            logger.info("retrying decode: %s", path)
-            qimage = _load_qimage(path)
-            logger.info("retry %s: %s", "succeeded" if qimage is not None else "failed", path)
         px = QPixmap.fromImage(qimage) if qimage is not None else None
 
         with self._lock:
