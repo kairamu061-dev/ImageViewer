@@ -7,6 +7,7 @@
 | collections.OrderedDict | ImageCache のLRU実装 | 標準ライブラリのみで `move_to_end` / `popitem(last=False)` によるLRUが簡単に実装できるため |
 | 専用 QThreadPool（複数インスタンス） | サブシステムごとのスレッドプール分離 | `QThreadPool.globalInstance()` を全サブシステムで共有していたことが競合の原因だったため、フォルダツリー・一覧表示それぞれに専用プールを持たせて分離 |
 | QListView.indexAt() による可視範囲算出 | 一覧表示の可視範囲優先読み込み | グリッドの実際のレイアウト（列数・スクロール位置）をQt自身に問い合わせることで、独自の行/列計算を持たずに正確な可視範囲を得られるため |
+| logging（標準ライブラリ）+ ファイル出力 | 「画像がありません」不具合の原因調査 | `console=False`（ウィンドウアプリ）でコンソール出力が見えないため、`%TEMP%\ImageViewer.log` にファイル出力。LRU化で不具合が解決しなかったため、憶測での再修正ではなく実機でのログ採取に切り替えた |
 
 ## アーキテクチャ
 
@@ -26,6 +27,16 @@ ThumbnailGridView
   ├── _visible_range(): indexAt() で現在の可視行範囲を算出
   └── _ensure_visible_loaded(): 可視範囲 ± (COLUMNS×PRELOAD_ROWS) 件を未ディスパッチなら読み込み
       呼び出し元: set_images / showEvent / resizeEvent / scrollContentsBy
+
+main.py
+  └── _setup_logging(): logging.basicConfig でファイル出力を設定（%TEMP%\ImageViewer.log）
+
+image_cache.py / grid_view.py
+  └── _load_qimage() / _load_thumb(): try/except で例外も捕捉し、失敗時は
+      reader.errorString() も含めてログ出力（従来は無言で None を返すのみだった）
+
+image_viewer_panel.py
+  └── show_image(): get_sync() が None を返した場合、対象のパスをログ出力
 ```
 
 ## データ構造

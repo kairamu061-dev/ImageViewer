@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import re
 from functools import cmp_to_key
 from pathlib import Path
@@ -8,6 +9,8 @@ from image_canvas import ImageCanvas
 from grid_view import ThumbnailGridView
 from hover_slider import HoverSlider
 from image_cache import ImageCache, SUPPORTED_EXTS
+
+logger = logging.getLogger(__name__)
 
 # QCollator's own numericMode was tried first but proved unreliable for names
 # like "(C99)" vs "(C100)" (99 ended up sorted after 100). So digit runs are
@@ -207,6 +210,9 @@ class ImageViewerPanel(QWidget):
         px = self._cache.get(index)
         if px is None:
             px = self._cache.get_sync(index)
+        if px is None and 0 <= index < len(self._images):
+            logger.warning("show_image: no pixmap for index=%d path=%s",
+                            index, self._images[index])
         self._canvas.set_pixmap(px)
         self._slider.set_index(index)
         self._cache.preload(index)

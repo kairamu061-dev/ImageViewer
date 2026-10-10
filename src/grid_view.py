@@ -1,10 +1,13 @@
 from __future__ import annotations
+import logging
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QListView, QAbstractItemView, QStyle,
 )
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal, QRunnable, QThreadPool, QObject
 from PyQt6.QtGui import QPixmap, QIcon, QImageReader
+
+logger = logging.getLogger(__name__)
 
 COLUMNS = 5
 THUMB_SIZE = 384   # max decode size (px, long side)
@@ -32,15 +35,22 @@ _GRID_STYLE = """
 
 def _load_thumb(path: Path, max_side: int):
     """Decode a downscaled QImage on a worker thread; never holds the full-size image."""
-    reader = QImageReader(str(path))
-    reader.setAutoTransform(True)
-    size = reader.size()
-    if size.isValid() and (size.width() > max_side or size.height() > max_side):
-        reader.setScaledSize(
-            size.scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio)
-        )
-    img = reader.read()
-    return None if img.isNull() else img
+    try:
+        reader = QImageReader(str(path))
+        reader.setAutoTransform(True)
+        size = reader.size()
+        if size.isValid() and (size.width() > max_side or size.height() > max_side):
+            reader.setScaledSize(
+                size.scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio)
+            )
+        img = reader.read()
+        if img.isNull():
+            logger.warning("thumb decode failed: %s (%s)", path, reader.errorString())
+            return None
+        return img
+    except Exception:
+        logger.exception("exception while decoding thumb: %s", path)
+        return None
 
 
 class _ThumbSignals(QObject):

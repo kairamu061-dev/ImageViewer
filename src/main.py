@@ -1,4 +1,6 @@
+import logging
 import sys
+import tempfile
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
@@ -11,9 +13,19 @@ def _resource(filename: str) -> Path:
     return Path(__file__).parent.parent / filename
 
 _ICON_PATH = _resource("app_icon.ico")
+LOG_PATH = Path(tempfile.gettempdir()) / "ImageViewer.log"
+
+
+def _setup_logging():
+    logging.basicConfig(
+        filename=str(LOG_PATH),
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 
 def main():
+    _setup_logging()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     if _ICON_PATH.exists():
