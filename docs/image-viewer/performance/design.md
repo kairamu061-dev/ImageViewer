@@ -13,6 +13,7 @@
 | `_load_qimage` に `reader.size()` の先行呼び出しを追加 | 「画像がありません」不具合の対策（直列化・リトライ完走後も解消しなかったため追加） | ユーザから「一覧表示では同じファイルが表示できている」との情報提供を受け、成功する `_load_thumb` と失敗する `_load_qimage` を比較。`read()` の前に `size()` を呼んでいるかどうかが唯一の差分だったため、同様に追加 → 効果なし |
 | 問題の性質を「一過性」から「決定的」に認識を修正し、`_load_qimage` にフル解像度のまま`setScaledSize`経路を使うフォールバックを追加 | `size()` 追加後も実機確認で解消せず、ログで毎回同じ結果（100%再現）であることを確認。縮小デコード（`setScaledSize`使用）だけが常に成功することから、縮小デコード経路自体に何らかの耐性があると推定し、画質を落とさず同じ経路を通すフォールバックを追加。合わせて、効果のなかった `get_sync` の即時リトライは削除 → このフォールバックも実機確認で失敗（元サイズ指定=1:1では実際のDCTスケーリングが発生しないため無意味だった） |
 | `_load_qimage` のフォールバックを「段階的に本当に縮小するカスケード」に変更 | 1:1指定が無効だったため、実際に縮小が発生する `_FALLBACK_SCALES = (7/8, 1/2, 1/4)` を順に試し、最後に一覧表示と同じ384px（`_LAST_RESORT_MAX_SIDE`、一度も失敗していない設定）まで下げる最終手段を用意。画質劣化は最小限に抑えつつ、理論上必ずどこかの段階で成功することを目指す |
+| **真因を `QImageReader` の画像確保上限超過と確定し、`setAllocationLimit(1024)` で引き上げ（本命の修正）** | ユーザ指摘を受けて失敗時ログに寸法を追加したところ `native=9600x7200`（ARGB32で約264MB）と判明。Qtデフォルトの256MB上限を超えて拒否されていたのが真因で、破損でもメモリ不足でもなかった。`main.py` 起動時に上限を1GBへ引き上げ、正常な大画像をフル解像度のまま表示できるようにした。カスケードは1GB超/破損用の保険に格下げ。※静的メソッドでプロセス全体に効くため起動時に一度設定すればよい |
 
 ## アーキテクチャ
 
@@ -40,11 +41,14 @@ ThumbnailGridView
       呼び出し元: set_images / showEvent / resizeEvent / scrollContentsBy
 
 main.py
-  └── _setup_logging(): logging.basicConfig でファイル出力を設定（%TEMP%\ImageViewer.log）
+  ├── _setup_logging(): logging.basicConfig でファイル出力を設定（%TEMP%\ImageViewer.log）
+  └── QImageReader.setAllocationLimit(1024): Qtの画像確保上限を256MB→1GBに引き上げ
+      （巨大画像のフル解像度デコードが拒否される真因への本命修正・プロセス全体に適用）
 
 image_cache.py / grid_view.py
   └── _load_qimage() / _load_thumb(): try/except で例外も捕捉し、失敗時は
-      reader.errorString() も含めてログ出力（従来は無言で None を返すのみだった）
+      reader.errorString() + native=幅x高 + bytes=サイズ をログ出力
+      （従来は無言で None を返すのみだった）
 
 image_viewer_panel.py
   ├── show_image(): get_sync() が None を返した場合、対象のパスをログ出力し _schedule_retry を起動
@@ -71,6 +75,9 @@ _RETRY_DELAYS_MS = (500, 1500, 4000, 9000)   # 遅延リトライのバックオ
 # image_cache.py
 _FALLBACK_SCALES = (7/8, 1/2, 1/4)   # 段階的な縮小フォールバック
 _LAST_RESORT_MAX_SIDE = 384          # grid_view.THUMB_SIZE と同じ、最終手段
+
+# main.py
+_IMAGE_ALLOC_LIMIT_MB = 1024         # QImageReader.setAllocationLimit に渡す上限
 ```
 
 ## 依存関係
@@ -80,3 +87,5 @@ _LAST_RESORT_MAX_SIDE = 384          # grid_view.THUMB_SIZE と同じ、最終�
 | collections.OrderedDict (標準ライブラリ) | ImageCache のLRU |
 | PyQt6.QtCore.QThreadPool | サブシステムごとの専用プール |
 | PyQt6.QtWidgets.QAbstractItemView.indexAt | 一覧表示の可視範囲算出 |
+| PyQt6.QtGui.QImageReader.setAllocationLimit | 画像確保上限の引き上げ（巨大画像のデコード許可） |
+| os.path.getsize (標準ライブラリ) | 失敗時ログのファイルサイズ取得 |

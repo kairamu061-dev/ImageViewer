@@ -16,9 +16,12 @@ PRELOAD_RADIUS = 3
 # reasonable improvement regardless, but it did NOT fix the "no image" bug
 # reported in large folders -- see _load_qimage's logging for the real cause.
 CACHE_LIMIT = 60
-# Requesting setScaledSize() at the *native* size turned out to be a no-op
-# (no real libjpeg DCT scaling happens, so it fails identically to a plain
-# read()). These fractions force genuine scaling, least lossy first.
+# Fallback for a decode that still fails at full resolution. The known cause
+# is Qt's per-image allocation cap (raised in main.py, but an image past even
+# that, or a genuinely corrupt one, can still fail); scaling down shrinks the
+# allocation and, for partial-data files, lets libjpeg DCT scaling skip the
+# unreadable tail. A native-size setScaledSize() is a no-op, so these force
+# genuine reduction, least lossy first.
 _FALLBACK_SCALES = (7 / 8, 1 / 2, 1 / 4)
 # Guaranteed last resort: the exact size grid_view's thumbnail decode uses,
 # which has never failed on any file so far (at the cost of resolution).
