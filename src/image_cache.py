@@ -4,7 +4,7 @@ import threading
 from collections import OrderedDict
 from pathlib import Path
 from PyQt6.QtGui import QPixmap, QImage, QImageReader
-from PyQt6.QtCore import QRunnable, QThreadPool, pyqtSignal, QObject
+from PyQt6.QtCore import QRunnable, QThreadPool, pyqtSignal, QObject, QSize, Qt
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,13 @@ PRELOAD_RADIUS = 3
 # reasonable improvement regardless, but it did NOT fix the "no image" bug
 # reported in large folders -- see _load_qimage's logging for the real cause.
 CACHE_LIMIT = 60
+# Requesting setScaledSize() at the *native* size turned out to be a no-op
+# (no real libjpeg DCT scaling happens, so it fails identically to a plain
+# read()). These fractions force genuine scaling, least lossy first.
+_FALLBACK_SCALES = (7 / 8, 1 / 2, 1 / 4)
+# Guaranteed last resort: the exact size grid_view's thumbnail decode uses,
+# which has never failed on any file so far (at the cost of resolution).
+_LAST_RESORT_MAX_SIDE = 384
 
 
 def _load_qimage(path: Path) -> QImage | None:
@@ -27,22 +34,38 @@ def _load_qimage(path: Path) -> QImage | None:
             return img
         logger.warning("decode failed: %s (%s)", path, reader.errorString())
 
-        # Fallback: a plain full-resolution read() can deterministically fail
-        # for a file that the thumbnail grid's scaled decode (setScaledSize)
-        # always succeeds on. Requesting the native size via setScaledSize
-        # routes through that same, more tolerant decode path while keeping
-        # full resolution (no actual downscaling happens).
+        native_size = QImageReader(str(path)).size()
+
+        for fraction in _FALLBACK_SCALES:
+            reader = QImageReader(str(path))
+            reader.setAutoTransform(True)
+            if native_size.isValid():
+                reader.setScaledSize(QSize(
+                    max(1, int(native_size.width() * fraction)),
+                    max(1, int(native_size.height() * fraction)),
+                ))
+            img = reader.read()
+            if not img.isNull():
+                logger.info("scaled-fallback decode succeeded at %.0f%%: %s",
+                            fraction * 100, path)
+                return img
+            logger.warning("scaled-fallback (%.0f%%) decode also failed: %s (%s)",
+                            fraction * 100, path, reader.errorString())
+
         reader = QImageReader(str(path))
         reader.setAutoTransform(True)
-        native_size = reader.size()
-        if native_size.isValid():
-            reader.setScaledSize(native_size)
+        if native_size.isValid() and (native_size.width() > _LAST_RESORT_MAX_SIDE
+                                       or native_size.height() > _LAST_RESORT_MAX_SIDE):
+            reader.setScaledSize(
+                native_size.scaled(_LAST_RESORT_MAX_SIDE, _LAST_RESORT_MAX_SIDE,
+                                    Qt.AspectRatioMode.KeepAspectRatio)
+            )
         img = reader.read()
         if img.isNull():
-            logger.warning("scaled-fallback decode also failed: %s (%s)",
+            logger.warning("last-resort decode also failed: %s (%s)",
                             path, reader.errorString())
             return None
-        logger.info("scaled-fallback decode succeeded: %s", path)
+        logger.info("last-resort decode succeeded (reduced quality): %s", path)
         return img
     except Exception:
         logger.exception("exception while decoding: %s", path)
