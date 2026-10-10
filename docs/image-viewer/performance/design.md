@@ -10,6 +10,7 @@
 | logging（標準ライブラリ）+ ファイル出力 | 「画像がありません」不具合の原因調査 | `console=False`（ウィンドウアプリ）でコンソール出力が見えないため、`%TEMP%\ImageViewer.log` にファイル出力。LRU化で不具合が解決しなかったため、憶測での再修正ではなく実機でのログ採取に切り替えた |
 | QTimer.singleShot によるバックオフ付き遅延リトライ | 「画像がありません」不具合の対策 | 実機ログで同一ファイルが連続してデコード失敗することを確認。即時リトライでは短すぎるため、時間を空けて最大4回まで自動再試行する方式に変更 |
 | ImageCache 専用プールを完全直列（maxThreadCount=1）に制限 | 「画像がありません」不具合の対策（遅延リトライのみでは2回目の確認でも解消しなかったため追加） | プリロードが前後3枚（最大7件）を既定の並列度（CPUコア数程度）で同時に読みに行っており、低速ドライブでの同時ランダムアクセスがスラッシングを招いていた可能性が高いと判断。ユーザに確認したところ D: は内蔵HDDと判明し、SSDと異なりランダムな同時シークに弱いため、2並列ではなく完全直列を選択 |
+| `_load_qimage` に `reader.size()` の先行呼び出しを追加 | 「画像がありません」不具合の対策（直列化・リトライ完走後も解消しなかったため追加） | ユーザから「一覧表示では同じファイルが表示できている」との情報提供を受け、成功する `_load_thumb` と失敗する `_load_qimage` を比較。`read()` の前に `size()` を呼んでいるかどうかが唯一の差分だったため、同様に追加 |
 
 ## アーキテクチャ
 
@@ -21,7 +22,8 @@ ImageCache
   ├── _cache: OrderedDict[int, QPixmap]  (CACHE_LIMIT=60 でLRU)
   ├── _store(index, pixmap): 挿入 + move_to_end + 上限超過分を popitem
   ├── get() / get_sync(): ヒット時に move_to_end
-  └── get_sync(): デコード失敗時に1回だけ即時リトライ
+  ├── get_sync(): デコード失敗時に1回だけ即時リトライ
+  └── _load_qimage(): read() の前に size() を呼ぶ（_load_thumb との差分を解消）
 
 FolderOnlyModel
   └── _pool: QThreadPool(maxThreadCount=2)  ← globalInstance() から変更
@@ -43,8 +45,9 @@ image_cache.py / grid_view.py
 image_viewer_panel.py
   ├── show_image(): get_sync() が None を返した場合、対象のパスをログ出力し _schedule_retry を起動
   ├── _schedule_retry(index, folder, attempt): _RETRY_DELAYS_MS（500/1500/4000/9000ms、計4回）に従い QTimer.singleShot で遅延実行をスケジュール
-  └── _retry_show_image(index, folder, attempt): folder/index が現在の表示と一致する場合のみ
-      get_sync() を再試行。成功ならキャンバス更新、失敗なら次の attempt を再スケジュール
+  └── _retry_show_image(index, folder, attempt): folder が現在の表示フォルダと一致する限り
+      （ページ送りで index が変わっても中断しない）get_sync() を再試行。成功時、表示中の
+      index と一致する場合のみキャンバス更新。失敗なら次の attempt を再スケジュール
 ```
 
 ## データ構造

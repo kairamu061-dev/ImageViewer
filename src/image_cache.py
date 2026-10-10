@@ -22,6 +22,11 @@ def _load_qimage(path: Path) -> QImage | None:
     try:
         reader = QImageReader(str(path))
         reader.setAutoTransform(True)   # Honour EXIF orientation
+        # Querying size() first (same as grid_view._load_thumb does for its
+        # scaled decode) makes the plugin parse the header before read().
+        # The thumbnail path -- identical otherwise -- never showed this bug,
+        # so the missing size() call here is the prime suspect.
+        reader.size()
         img = reader.read()
         if img.isNull():
             logger.warning("decode failed: %s (%s)", path, reader.errorString())
