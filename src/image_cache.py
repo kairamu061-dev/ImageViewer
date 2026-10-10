@@ -59,7 +59,12 @@ class ImageCache:
         self._images: list[Path] = []
         self._folder: Path | None = None
         self._generation = 0
-        self._pool = QThreadPool.globalInstance()
+        # Dedicated pool, deliberately small: the logged failures showed
+        # several preload workers hammering the same (likely slow/HDD or
+        # network) drive with concurrent random-access reads for close to a
+        # second at a time. Serializing preload reads avoids that thrashing.
+        self._pool = QThreadPool()
+        self._pool.setMaxThreadCount(2)
         self._signals = _LoadSignals()
         self._signals.done.connect(self._on_loaded)
 

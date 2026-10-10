@@ -13,9 +13,9 @@ from image_cache import ImageCache, SUPPORTED_EXTS
 logger = logging.getLogger(__name__)
 
 # Backoff delays (ms) for retrying a failed decode -- logged failures kept
-# failing for most of a second even with an immediate retry, so this gives an
-# external, longer-lived block (AV scan, cloud-sync lock, etc.) time to clear
-_RETRY_DELAYS_MS = (300, 1000, 3000)
+# failing for multiple seconds even with an immediate retry, so this gives a
+# slow/contended drive (or AV scan, cloud-sync lock, etc.) more time to clear
+_RETRY_DELAYS_MS = (500, 1500, 4000, 9000)
 
 # QCollator's own numericMode was tried first but proved unreliable for names
 # like "(C99)" vs "(C100)" (99 ended up sorted after 100). So digit runs are
