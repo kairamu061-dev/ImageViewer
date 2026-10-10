@@ -237,13 +237,20 @@ class ImageViewerPanel(QWidget):
         QTimer.singleShot(delay, lambda: self._retry_show_image(index, folder, attempt))
 
     def _retry_show_image(self, index: int, folder: Path | None, attempt: int):
-        if (self._folder != folder or self._index != index
-                or not (0 <= index < len(self._images))):
-            return   # user has moved on (different folder/index); drop this stale retry
+        # Only abandon the retry chain if the folder itself changed (or the
+        # index no longer exists in it) -- NOT just because the user paged to
+        # a different image in the meantime. Quick page-turning is normal
+        # usage and previously cancelled every retry before it had a chance
+        # to run, so the fix below never did anything in practice. Keep
+        # retrying in the background regardless; only touch the canvas if
+        # the user happens to still (or again) be on this exact index.
+        if self._folder != folder or not (0 <= index < len(self._images)):
+            return
         px = self._cache.get_sync(index)
         if px is not None:
             logger.info("delayed retry succeeded: index=%d attempt=%d", index, attempt + 1)
-            self._canvas.set_pixmap(px)
+            if self._index == index:
+                self._canvas.set_pixmap(px)
             return
         self._schedule_retry(index, folder, attempt + 1)
 
