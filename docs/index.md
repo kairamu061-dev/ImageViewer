@@ -16,3 +16,4 @@
   - [favorites](./image-viewer/favorites/overview.md)
   - [persistence](./image-viewer/persistence/overview.md)
   - [grid-view](./image-viewer/grid-view/overview.md)
+  - [performance](./image-viewer/performance/overview.md)

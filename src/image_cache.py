@@ -1,11 +1,17 @@
 from __future__ import annotations
 import threading
+from collections import OrderedDict
 from pathlib import Path
 from PyQt6.QtGui import QPixmap, QImage, QImageReader
 from PyQt6.QtCore import QRunnable, QThreadPool, pyqtSignal, QObject
 
 SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif"}
 PRELOAD_RADIUS = 3
+# Full-resolution QPixmaps are uncompressed in memory; without a cap, browsing
+# a large folder end to end accumulates them without limit. That memory
+# pressure was the likely cause of intermittent "no image" failures in big
+# folders (the thumbnail grid uses tiny scaled decodes and never hit this).
+CACHE_LIMIT = 60
 
 
 def _load_qimage(path: Path) -> QImage | None:
@@ -37,7 +43,7 @@ class _LoadWorker(QRunnable):
 
 class ImageCache:
     def __init__(self):
-        self._cache: dict[int, QPixmap] = {}
+        self._cache: OrderedDict[int, QPixmap] = OrderedDict()
         self._loading: set[int] = set()
         self._lock = threading.Lock()
         self._images: list[Path] = []
@@ -57,24 +63,39 @@ class ImageCache:
 
     def get(self, index: int) -> QPixmap | None:
         with self._lock:
-            return self._cache.get(index)
+            if index not in self._cache:
+                return None
+            self._cache.move_to_end(index)
+            return self._cache[index]
 
     def get_sync(self, index: int) -> QPixmap | None:
         """Load synchronously on the calling (main) thread."""
         with self._lock:
             if index in self._cache:
+                self._cache.move_to_end(index)
                 return self._cache[index]
             if not self._images or index < 0 or index >= len(self._images):
                 return None
             path = self._images[index]
 
         qimage = _load_qimage(path)
+        if qimage is None:
+            # Retry once: a transient I/O hiccup (e.g. antivirus/cloud-sync lock)
+            # shouldn't permanently show "no image" for an otherwise-valid file
+            qimage = _load_qimage(path)
         px = QPixmap.fromImage(qimage) if qimage is not None else None
 
         with self._lock:
             if px is not None:
-                self._cache[index] = px
+                self._store(index, px)
         return px
+
+    def _store(self, index: int, pixmap: QPixmap):
+        """Insert/refresh a cache entry and evict the least-recently-used ones over the cap."""
+        self._cache[index] = pixmap
+        self._cache.move_to_end(index)
+        while len(self._cache) > CACHE_LIMIT:
+            self._cache.popitem(last=False)
 
     def preload(self, center: int):
         total = len(self._images)
@@ -103,7 +124,7 @@ class ImageCache:
                 return
             self._loading.discard(index)
             if qimage is not None:
-                self._cache[index] = QPixmap.fromImage(qimage)
+                self._store(index, QPixmap.fromImage(qimage))
 
     def clear(self):
         with self._lock:

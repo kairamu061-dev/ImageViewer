@@ -3,11 +3,13 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QListView, QAbstractItemView, QStyle,
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QRunnable, QThreadPool, QObject
+from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal, QRunnable, QThreadPool, QObject
 from PyQt6.QtGui import QPixmap, QIcon, QImageReader
 
 COLUMNS = 5
 THUMB_SIZE = 384   # max decode size (px, long side)
+# Extra rows above/below the visible area to warm up while scrolling
+PRELOAD_ROWS = 2
 
 _GRID_STYLE = """
     QListWidget {
@@ -69,9 +71,11 @@ class ThumbnailGridView(QListWidget):
         super().__init__(parent)
         self._generation = 0
         self._images: list[Path] = []
-        self._load_pending = False
+        self._dispatched: set[int] = set()
         self._last_cell = 0
-        self._pool = QThreadPool.globalInstance()
+        # Dedicated pool (not globalInstance()) so a large folder's thumbnails
+        # don't flood the same pool image preloading/folder-tree checks use
+        self._pool = QThreadPool()
         self._signals = _ThumbSignals()
         self._signals.done.connect(self._on_thumb_loaded)
 
@@ -94,6 +98,7 @@ class ThumbnailGridView(QListWidget):
     def set_images(self, images: list[Path]):
         self._generation += 1
         self._images = images
+        self._dispatched = set()
         self.clear()
         cell = self._cell_size()
         for i, path in enumerate(images):
@@ -103,22 +108,43 @@ class ThumbnailGridView(QListWidget):
             item.setSizeHint(QSize(cell, cell))
             self.addItem(item)
         self._update_grid_size()
-        # Defer decoding until the grid is actually shown
-        self._load_pending = True
-        if self.isVisible():
-            self._start_loading()
+        self._ensure_visible_loaded()
 
     def showEvent(self, event):
         super().showEvent(event)
         self._update_grid_size()
-        if self._load_pending:
-            self._start_loading()
+        self._ensure_visible_loaded()
 
-    def _start_loading(self):
-        self._load_pending = False
+    def scrollContentsBy(self, dx: int, dy: int):
+        super().scrollContentsBy(dx, dy)
+        self._ensure_visible_loaded()
+
+    def _visible_range(self) -> tuple[int, int]:
+        vp = self.viewport().rect()
+        top = self.indexAt(vp.topLeft())
+        bottom = self.indexAt(QPoint(vp.left(), vp.bottom() - 1))
+        start = top.row() if top.isValid() else 0
+        end = bottom.row() if bottom.isValid() else self.count() - 1
+        return start, end
+
+    def _ensure_visible_loaded(self):
+        # Only dispatch decode workers for images near the viewport, growing
+        # as the user scrolls, instead of queuing the whole folder at once
+        # (which made large folders feel heavy)
+        if not self._images or not self.isVisible():
+            return
+        start_row, end_row = self._visible_range()
+        if end_row < 0:
+            return
+        buffer = COLUMNS * PRELOAD_ROWS
+        start = max(0, start_row - buffer)
+        end = min(len(self._images) - 1, end_row + buffer)
         gen = self._generation
-        for i, path in enumerate(self._images):
-            self._pool.start(_ThumbWorker(gen, i, path, self._signals))
+        for i in range(start, end + 1):
+            if i in self._dispatched:
+                continue
+            self._dispatched.add(i)
+            self._pool.start(_ThumbWorker(gen, i, self._images[i], self._signals))
 
     def select_index(self, index: int):
         if 0 <= index < self.count():
@@ -183,3 +209,4 @@ class ThumbnailGridView(QListWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._update_grid_size()
+        self._ensure_visible_loaded()

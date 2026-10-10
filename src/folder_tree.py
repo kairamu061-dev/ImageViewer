@@ -74,7 +74,11 @@ class FolderOnlyModel(QFileSystemModel):
         self.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
         self._cache: dict[str, bool] = {}   # path → has_subdir
         self._pending: set[str] = set()
-        self._pool = QThreadPool.globalInstance()
+        # Dedicated pool (not globalInstance()) so expanding/scrolling a tree
+        # with many folders doesn't flood the same pool image decoding uses
+        # elsewhere and starve it
+        self._pool = QThreadPool()
+        self._pool.setMaxThreadCount(2)
         self._signals = _CheckSignals()
         self._signals.done.connect(self._on_check_done)
         self.directoryLoaded.connect(self._on_dir_loaded)
