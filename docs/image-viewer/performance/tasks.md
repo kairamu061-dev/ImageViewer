@@ -7,7 +7,7 @@
 - [x] FolderOnlyModel: 専用 QThreadPool（maxThreadCount=2）に変更
 - [x] ThumbnailGridView: 専用 QThreadPool に変更
 - [x] ThumbnailGridView: `_ensure_visible_loaded()` による可視範囲優先読み込みに変更（`_start_loading` の全件一括読み込みを廃止）
-- [ ] 実機確認: フォルダツリー・一覧スクロールの重さ（未確認）
+- [x] 実機確認: フォルダツリー・一覧スクロールの重さ → 一覧スクロールは目に見えて高速化、フォルダツリーも改善傾向（ユーザ体感確認）
 - [!] 実機確認: 大きいフォルダでの「画像がありません」再発有無 → LRU化後も再発を確認。原因未解決だった
 - [x] `_load_qimage` / `_load_thumb` / `show_image` に診断用ログを追加（`%TEMP%\ImageViewer.log`）
 - [x] ログから原因特定（同一ファイルへの読み込みが約1秒近く連続失敗 = 外部要因による一時ブロックと判断）
