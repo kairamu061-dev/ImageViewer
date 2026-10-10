@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import os
 import threading
 from collections import OrderedDict
 from pathlib import Path
@@ -29,12 +30,21 @@ def _load_qimage(path: Path) -> QImage | None:
     try:
         reader = QImageReader(str(path))
         reader.setAutoTransform(True)   # Honour EXIF orientation
+        native_size = reader.size()   # read header before pixel data
         img = reader.read()
         if not img.isNull():
             return img
-        logger.warning("decode failed: %s (%s)", path, reader.errorString())
 
-        native_size = QImageReader(str(path)).size()
+        # Log dimensions + byte size on failure: lets us tell an actually
+        # corrupt file apart from a merely huge one (full-res alloc failure
+        # also surfaces as "Unable to read image data") or a plugin quirk.
+        try:
+            file_bytes = os.path.getsize(path)
+        except OSError:
+            file_bytes = -1
+        logger.warning("decode failed: %s (%s) native=%dx%d bytes=%d",
+                        path, reader.errorString(),
+                        native_size.width(), native_size.height(), file_bytes)
 
         for fraction in _FALLBACK_SCALES:
             reader = QImageReader(str(path))
