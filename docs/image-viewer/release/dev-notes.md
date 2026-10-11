@@ -18,6 +18,7 @@
 |------|------|
 | 現状アプリが起動時引数を無視しており、関連付けを登録しても「ダブルクリックで開く」が機能しない | `main.py`→`MainWindow`→`app_tabs`→`tab_content`→`image_viewer_panel.load_folder` に初期画像パスを伝播する経路を追加して対応 |
 | この開発環境に Windows/Python/PyInstaller/Inno Setup が無く、ビルド・動作確認ができない | リポジトリにはスクリプト（`installer.iss`/`build-installer.bat`）のみを用意し、ビルドと確認はユーザーの Windows で実施してもらう（tasks.md の未チェック項目） |
+| 初版の `build-installer.bat` が ISCC を既定パス1箇所だけ見ており「見つからない」でビルド失敗（ユーザ実機） | ISCC の探索を複数の既定インストール先（Program Files (x86)/Program Files の Inno Setup 6・5、`%LocalAppData%\Programs`）＋ PATH 上の `where ISCC` に拡張。`%ProgramFiles(x86)%` は `(x86)` の `)` が for ブロックを壊すため、先に変数へ退避してから使う。見つからない場合は探索先と、手動でパス指定する方法を案内するよう改善 |
 
 ## 設計からの変更点
 
