@@ -7,7 +7,7 @@ import state_manager
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, initial_path: Path | None = None):
         super().__init__()
         self.setWindowTitle("画像ビューアー")
         self.resize(1200, 800)
@@ -17,7 +17,23 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._apply_style()
-        self._restore_state()
+
+        # Launched with a file/folder (e.g. a file association): open just
+        # that, and don't persist it on close so the user's normal saved
+        # session isn't clobbered by an ad-hoc "open this image" launch.
+        self._persist_on_close = initial_path is None
+        if initial_path is not None:
+            self._open_initial_path(initial_path)
+        else:
+            self._restore_state()
+
+    def _open_initial_path(self, path: Path):
+        if path.is_file():
+            self._tabs.add_new_tab(path.parent, initial_image=path)
+        elif path.is_dir():
+            self._tabs.add_new_tab(path)
+        else:
+            self._restore_state()
 
     def _build_toolbar(self):
         toolbar = QToolBar("メイン", self)
@@ -68,11 +84,12 @@ class MainWindow(QMainWindow):
             self._tabs.add_new_tab()
 
     def closeEvent(self, event):
-        geo = self.geometry()
-        state = self._tabs.get_state()
-        state["window"] = {
-            "x": geo.x(), "y": geo.y(),
-            "width": geo.width(), "height": geo.height(),
-        }
-        state_manager.save(state)
+        if self._persist_on_close:
+            geo = self.geometry()
+            state = self._tabs.get_state()
+            state["window"] = {
+                "x": geo.x(), "y": geo.y(),
+                "width": geo.width(), "height": geo.height(),
+            }
+            state_manager.save(state)
         super().closeEvent(event)

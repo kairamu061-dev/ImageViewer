@@ -33,6 +33,17 @@ def _setup_logging():
     )
 
 
+def _initial_path() -> Path | None:
+    """First existing non-option CLI arg: the image/folder a file association passed."""
+    for arg in sys.argv[1:]:
+        if arg.startswith("-"):
+            continue
+        p = Path(arg)
+        if p.exists():
+            return p
+    return None
+
+
 def main():
     _setup_logging()
     QImageReader.setAllocationLimit(_IMAGE_ALLOC_LIMIT_MB)
@@ -40,7 +51,7 @@ def main():
     app.setStyle("Fusion")
     if _ICON_PATH.exists():
         app.setWindowIcon(QIcon(str(_ICON_PATH)))
-    window = MainWindow()
+    window = MainWindow(_initial_path())
     window.show()
     sys.exit(app.exec())
 

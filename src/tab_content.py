@@ -70,10 +70,10 @@ class TabContent(QWidget):
     # Public API
     # ------------------------------------------------------------------
 
-    def set_root(self, folder: Path):
+    def set_root(self, folder: Path, initial_image: Path | None = None):
         self._root_folder = folder
         self._folder_panel.set_root(folder)
-        self._viewer.load_folder(folder)
+        self._viewer.load_folder(folder, initial_image=initial_image)
 
     def get_state(self) -> dict:
         return {

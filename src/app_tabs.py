@@ -120,7 +120,8 @@ class AppTabWidget(QTabWidget):
     # Tab management
     # ------------------------------------------------------------------
 
-    def add_new_tab(self, root: Path | None = None) -> TabContent:
+    def add_new_tab(self, root: Path | None = None,
+                    initial_image: Path | None = None) -> TabContent:
         content = TabContent(self)
         content.add_to_favorites.connect(self._fav_model.add_folder)
         content.open_in_new_tab.connect(self.add_new_tab)
@@ -130,7 +131,7 @@ class AppTabWidget(QTabWidget):
         content._viewer.set_swap_mode(self._default_swap_mode)
         self.setCurrentIndex(idx)
         if root:
-            content.set_root(root)
+            content.set_root(root, initial_image)
         return content
 
     def _toggle_favorites(self):

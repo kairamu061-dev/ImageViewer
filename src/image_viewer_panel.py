@@ -174,7 +174,8 @@ class ImageViewerPanel(QWidget):
         self._mode_btn.setChecked(False)   # back to single view
         self.show_image(index)
 
-    def load_folder(self, folder: Path, initial_index: int = 0):
+    def load_folder(self, folder: Path, initial_index: int = 0,
+                    initial_image: Path | None = None):
         try:
             files = sorted(
                 [p for p in folder.iterdir() if p.suffix.lower() in SUPPORTED_EXTS],
@@ -188,6 +189,14 @@ class ImageViewerPanel(QWidget):
         self._cache.set_folder(folder, files)
         self._slider.set_count(len(files))
         self._grid.set_images(files)
+
+        # A specific file to show (e.g. launched by double-clicking it) wins
+        # over initial_index; match by name since the entries are all in folder
+        if initial_image is not None:
+            for i, p in enumerate(files):
+                if p.name == initial_image.name:
+                    initial_index = i
+                    break
 
         if files:
             if initial_index == -1:
